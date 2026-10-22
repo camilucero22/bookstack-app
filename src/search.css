@@ -1,0 +1,9 @@
+.ac{position:relative;display:grid;gap:5px}
+.ac label{font:600 13px var(--text)}
+.hint{font:400 12px var(--text);color:var(--mute)}
+.suggest{position:absolute;z-index:20;top:100%;left:0;right:0;margin:6px 0 0;padding:6px;list-style:none;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 36px -14px rgba(0,0,0,.45);max-height:340px;overflow-y:auto}
+.suggest li{display:flex;gap:12px;align-items:center;padding:8px;border-radius:12px;cursor:pointer}
+.suggest li.on,.suggest li:hover{background:var(--paper)}
+.suggest img,.suggest .nocover{display:block;width:32px;height:48px;flex:none;object-fit:cover;border-radius:3px;background:var(--line)}
+.suggest strong{display:block;font:700 15px/1.25 var(--head)}
+.suggest small{font:400 12px var(--text);color:var(--mute)}

@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function mine(uid) { return request.auth != null && request.auth.uid == uid; }
+
+    match /users/{uid}/books/{id} {
+      allow read, delete: if mine(uid);
+      allow create, update: if mine(uid)
+        && request.resource.data.title is string
+        && request.resource.data.price is number && request.resource.data.price > 0
+        && request.resource.data.stock is int && request.resource.data.stock >= 0;
+    }
+    // Las ventas no se editan ni se borran: son el historial.
+    match /users/{uid}/sales/{id} {
+      allow read, create: if mine(uid);
+    }
+  }
+}
