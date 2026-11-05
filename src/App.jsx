@@ -149,7 +149,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
-        <h1>Book Stack</h1>
+        <div>
+          <h1>Book Stack</h1>
+          <p className="lede">Stock y ventas de la librería</p>
+        </div>
         <nav>
           <button className={"pill" + (view === "stock" ? " on" : "")} onClick={() => setView("stock")}>
             <Icon><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" /><path d="M3 8l9 5 9-5M12 13v8" /></Icon>Stock
@@ -185,13 +188,16 @@ export default function App() {
                   <button className="card" onClick={() => setSelected(b.id)}
                     aria-label={`${b.title}, ${b.author}. ${b.stock} en stock`}>
                     <Cover book={b} />
+                    <span className="meta"><strong>{b.title}</strong><em>{b.author}</em></span>
                     <span className={"badge" + (b.stock <= 2 ? " low" : "")}>{b.stock === 0 ? "Sin stock" : b.stock}</span>
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="muted">{books.length ? "No hay libros que coincidan." : "Tu estante está vacío. Agregá el primer libro."}</p>
+            <div className="empty">
+              <p className="muted">{books.length ? "No hay libros que coincidan." : "Tu estante está vacío. Agregá el primer libro."}</p>
+            </div>
           )}
         </>
       )}

@@ -32,7 +32,7 @@ export default function BookDetail({ book, sold, revenue, inCart, onAdd, onEdit,
         </div>
         <div className="actions">
           <button className="btn sm" onClick={onEdit}>Editar</button>
-          <button className="btn sm" onClick={onDelete}>Eliminar</button>
+          <button className="btn sm danger" onClick={onDelete}>Eliminar</button>
           <button className="btn sm" onClick={onClose}>Cerrar</button>
         </div>
       </div>
