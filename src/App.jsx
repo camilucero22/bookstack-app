@@ -11,6 +11,7 @@ import BookForm from "./components/BookForm";
 import BookDetail from "./components/BookDetail";
 import Cart from "./components/Cart";
 import Dashboard from "./components/Dashboard";
+import Stats from "./components/Stats";
 
 const SORTS = ["Alfabético", "Género (A-Z)", "Año publicación", "Autor (A-Z)", "Más vendidos", "Menor stock"];
 const money = (n) => "$" + n.toLocaleString("es-AR");
@@ -164,12 +165,13 @@ export default function App() {
       </header>
 
       {loading && <p className="muted">Cargando tu librería…</p>}
-      {!loading && view === "panel" && <Dashboard books={books} sales={sales} />}
+      {!loading && view === "panel" && <Dashboard books={books} sales={sales} onRestock={(b) => setEditing(b)} />}
       {!loading && view === "stock" && (
         <>
+          <Stats books={books} sales={sales} />
           <div className="searchbar">
             <Icon><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></Icon>
-            <input className="search" type="search" aria-label="Buscar en stock" placeholder="Buscar en stock"
+            <input className="search" type="search" aria-label="Buscar por título, autor o género" placeholder="Buscar por título, autor o género"
               value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           <div className="sorts" role="group" aria-label="Ordenar por">
@@ -178,8 +180,10 @@ export default function App() {
             ))}
           </div>
           <div className="headrow">
-            <h2>Libros disponibles</h2>
-            <button className="btn solid" onClick={() => setEditing("new")}>Agregar libro</button>
+            <h2>Libros disponibles <span className="count">{shown.length}</span></h2>
+            <button className="btn solid" onClick={() => setEditing("new")}>
+              <Icon><path d="M12 5v14M5 12h14" /></Icon>Agregar libro
+            </button>
           </div>
           {shown.length ? (
             <ul className="books">
@@ -188,8 +192,12 @@ export default function App() {
                   <button className="card" onClick={() => setSelected(b.id)}
                     aria-label={`${b.title}, ${b.author}. ${b.stock} en stock`}>
                     <Cover book={b} />
-                    <span className="meta"><strong>{b.title}</strong><em>{b.author}</em></span>
-                    <span className={"badge" + (b.stock <= 2 ? " low" : "")}>{b.stock === 0 ? "Sin stock" : b.stock}</span>
+                    <span className="meta">
+                      <strong>{b.title}</strong>
+                      <em>{b.author}</em>
+                      <small>{[b.genre, b.year].filter(Boolean).join(" · ")}</small>
+                    </span>
+                    <span className={"badge" + (b.stock <= 2 ? " low" : "")}>{b.stock === 0 ? "Sin stock" : `${b.stock} en stock`}</span>
                   </button>
                 </li>
               ))}
