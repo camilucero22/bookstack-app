@@ -18,13 +18,13 @@ const sync = (e) => {
   else el.removeAttribute("aria-invalid");
 };
 
-export default function BookForm({ initial, onSubmit, onCancel }) {
+export default function BookForm({ initial, suppliers = [], submitLabel, onSubmit, onCancel }) {
   const [f, setF] = useState(initial
     ? {
       title: initial.title, author: initial.author, genre: initial.genre, language: initial.language, price: initial.price,
-      stock: initial.stock, year: initial.year ?? null, coverId: initial.coverId ?? null
+      stock: initial.stock, supplierId: initial.supplierId ?? "", year: initial.year ?? null, coverId: initial.coverId ?? null
     }
-    : { title: "", author: "", genre: GENRES[0].name, language: LANGS[0], price: "", stock: "", year: null, coverId: null });
+    : { title: "", author: "", genre: GENRES[0].name, language: LANGS[0], price: "", stock: "", supplierId: "", year: null, coverId: null });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
   // Al elegir un libro real se completan título, autor, idioma, género, año y tapa; precio y stock los cargás vos.
@@ -36,7 +36,7 @@ export default function BookForm({ initial, onSubmit, onCancel }) {
 
   const submit = (e) => {
     e.preventDefault();
-    onSubmit({ ...f, title: f.title.trim(), author: f.author.trim(), price: Number(f.price), stock: Number(f.stock) });
+    onSubmit({ ...f, title: f.title.trim(), author: f.author.trim(), price: Number(f.price), stock: Number(f.stock), supplierId: f.supplierId || null });
   };
 
   return (
@@ -58,9 +58,15 @@ export default function BookForm({ initial, onSubmit, onCancel }) {
         <Field name="stock" label="Stock (unidades)" msg="El stock debe ser un entero de 0 o más.">
           <input type="number" inputMode="numeric" min="0" step="1" value={f.stock} onChange={set("stock")} required aria-errormessage="stock-e" />
         </Field>
+        <Field name="supplier" label="Proveedor habitual (opcional)">
+          <select value={f.supplierId} onChange={set("supplierId")}>
+            <option value="">Sin proveedor</option>
+            {suppliers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </Field>
       </div>
       <div className="actions">
-        <button type="submit" className="btn solid">{initial ? "Guardar cambios" : "Agregar libro"}</button>
+        <button type="submit" className="btn solid">{submitLabel || (initial ? "Guardar cambios" : "Agregar libro")}</button>
         <button type="button" className="btn" onClick={onCancel}>Cancelar</button>
       </div>
     </form>

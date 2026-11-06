@@ -60,7 +60,8 @@ export default function Dashboard({ books, sales, onRestock }) {
     // Más vendidos por libro (con la tapa, si el libro todavía existe).
     const t = {};
     lines.forEach((x) => {
-      const r = (t[x.bookId] ||= { id: x.bookId, title: x.title, genre: x.genre, qty: 0 });
+      const id = x.bookId || "t:" + x.title; // los libros encargados fuera del catálogo se agrupan por título
+      const r = (t[id] ||= { id, title: x.title, genre: x.genre, qty: 0 });
       r.qty += x.qty;
     });
     const titles = Object.values(t).sort((a, b) => b.qty - a.qty).slice(0, 5)

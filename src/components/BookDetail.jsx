@@ -4,7 +4,7 @@ import Cover from "./Cover";
 
 const money = (n) => "$" + n.toLocaleString("es-AR");
 
-export default function BookDetail({ book, sold, revenue, inCart, onAdd, onEdit, onDelete, onClose }) {
+export default function BookDetail({ book, sold, revenue, inCart, pending = 0, reserved = 0, onAdd, onOrder, onEdit, onDelete, onClose }) {
   const [n, setN] = useState(1);
   const free = book.stock - inCart;
   const ok = Number.isInteger(Number(n)) && n >= 1 && n <= free;
@@ -22,6 +22,8 @@ export default function BookDetail({ book, sold, revenue, inCart, onAdd, onEdit,
           <div><dt>Idioma</dt><dd>{book.language}</dd></div>
           <div><dt>Vendidos</dt><dd>{sold}</dd></div>
           <div><dt>Ingresos</dt><dd>{money(revenue)}</dd></div>
+          {pending > 0 && <div><dt>Encargos pendientes</dt><dd>{pending}</dd></div>}
+          {reserved > 0 && <div><dt>Reservados</dt><dd>{reserved}</dd></div>}
         </dl>
         {book.stock <= 2 && <p className="warn">Quedan pocas unidades: conviene reponer.</p>}
         <div className="buy">
@@ -31,6 +33,7 @@ export default function BookDetail({ book, sold, revenue, inCart, onAdd, onEdit,
           <button className="btn solid" disabled={!ok} onClick={() => onAdd(Number(n))}>Agregar a la venta</button>
         </div>
         <div className="actions">
+          {book.stock === 0 && <button className="btn sm" onClick={onOrder}>Nuevo encargo</button>}
           <button className="btn sm" onClick={onEdit}>Editar</button>
           <button className="btn sm danger" onClick={onDelete}>Eliminar</button>
           <button className="btn sm" onClick={onClose}>Cerrar</button>

@@ -12,6 +12,10 @@ import BookDetail from "./components/BookDetail";
 import Cart from "./components/Cart";
 import Dashboard from "./components/Dashboard";
 import Stats from "./components/Stats";
+import Encargos from "./components/Encargos";
+import EncargoForm from "./components/EncargoForm";
+import PedidoProveedor from "./components/PedidoProveedor";
+import * as E from "./lib/encargosDb";
 
 const SORTS = ["Alfabético", "Género (A-Z)", "Año publicación", "Autor (A-Z)", "Más vendidos", "Menor stock"];
 const money = (n) => "$" + n.toLocaleString("es-AR");
@@ -34,6 +38,11 @@ export default function App() {
   const [q, setQ] = useState("");
   const [cart, setCart] = useState({}); // { idLibro: cantidad }
   const [cartOpen, setCartOpen] = useState(false);
+  const [orders, setOrders] = useState([]); // encargos de clientes
+  const [suppliers, setSuppliers] = useState([]);
+  const [supplierOrders, setSupplierOrders] = useState([]); // pedidos enviados a proveedores
+  const [orderForm, setOrderForm] = useState(null); // null | { order, book }
+  const [catalogFrom, setCatalogFrom] = useState(null); // encargo que se va a cargar al catálogo
   const toastRef = useRef(null);
 
   const notify = (type, msg) => {
@@ -62,7 +71,12 @@ export default function App() {
       (s) => { setBooks(s.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false); }, onErr);
     const u2 = onSnapshot(query(collection(db, "users", uid, "sales"), orderBy("date", "desc")),
       (s) => setSales(s.docs.map((d) => ({ id: d.id, ...d.data() }))), onErr);
-    return () => { u1(); u2(); };
+    const snap = (name, field, dir, set) => onSnapshot(query(collection(db, "users", uid, name), orderBy(field, dir)),
+      (s) => set(s.docs.map((d) => ({ id: d.id, ...d.data() }))), onErr);
+    const u3 = snap("customerOrders", "createdAt", "desc", setOrders);
+    const u4 = snap("suppliers", "name", "asc", setSuppliers);
+    const u5 = snap("supplierOrders", "orderedAt", "desc", setSupplierOrders);
+    return () => { u1(); u2(); u3(); u4(); u5(); };
   }, [uid]);
 
   const run = async (fn, okMsg) => {
@@ -70,6 +84,31 @@ export default function App() {
     catch (e) { console.error(e); notify("error", "No se pudo guardar el cambio (" + (e.code || e.message) + ")"); return false; }
   };
   const bookRef = (id) => doc(db, "users", uid, "books", id);
+  const ctx = { db, uid };
+
+  // Encargos: lo recibido está reservado (no cuenta como stock disponible) y lo pendiente/pedido se avisa en el detalle.
+  const reserved = {}, open = {};
+  orders.forEach((o) => {
+    if (!o.bookId || o.archived) return;
+    if (o.status === "received") reserved[o.bookId] = (reserved[o.bookId] || 0) + o.qty;
+    if (o.status === "pending" || o.status === "ordered") open[o.bookId] = (open[o.bookId] || 0) + 1;
+  });
+  const toNotify = orders.filter((o) => o.status === "received" && !o.archived).length;
+  const toOrder = orders.filter((o) => o.status === "pending" && !o.archived).length;
+
+  const saveOrder = async (data) => {
+    const cur = orderForm.order;
+    const ok = await run(() => (cur ? E.updateOrder(ctx, cur.id, data) : E.createOrder(ctx, data)), cur ? "Encargo actualizado" : "Encargo guardado");
+    if (ok) setOrderForm(null);
+  };
+  const mergeOrder = async (existing, n) => {
+    const ok = await run(() => E.updateOrder(ctx, existing.id, { qty: existing.qty + n }), "Sumé las unidades al encargo existente");
+    if (ok) setOrderForm(null);
+  };
+  const saveCatalogBook = async (data) => {
+    const ok = await run(() => E.addBookFromOrder(ctx, data, catalogFrom, orders), "Libro agregado al catálogo");
+    if (ok) setCatalogFrom(null);
+  };
 
   const saveBook = async (data) => {
     const isNew = editing === "new";
@@ -161,11 +200,28 @@ export default function App() {
           <button className={"pill" + (view === "panel" ? " on" : "")} onClick={() => setView("panel")}>
             <Icon><path d="M3 12l4 4 5-9 4 7 5-6" /></Icon>Estadísticas
           </button>
+          <button className={"pill" + (view === "orders" ? " on" : "")} onClick={() => setView("orders")}>
+            <Icon><path d="M9 4h6v3H9z" /><path d="M7 5H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1" /><path d="M9 13h6M9 17h4" /></Icon>
+            Encargos{toNotify > 0 && <span className="n" aria-label={`${toNotify} para avisar`}>{toNotify}</span>}
+          </button>
+          <button className={"pill" + (view === "supply" ? " on" : "")} onClick={() => setView("supply")}>
+            <Icon><path d="M3 6h11v10H3z" /><path d="M14 10h4l3 3v3h-7" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="18" r="2" /></Icon>
+            Pedido{toOrder > 0 && <span className="n" aria-label={`${toOrder} pendientes de pedir`}>{toOrder}</span>}
+          </button>
         </nav>
       </header>
 
       {loading && <p className="muted">Cargando tu librería…</p>}
       {!loading && view === "panel" && <Dashboard books={books} sales={sales} onRestock={(b) => setEditing(b)} />}
+      {!loading && view === "orders" && (
+        <Encargos orders={orders} books={books} suppliers={suppliers} ctx={ctx} run={run}
+          onNew={() => setOrderForm({ order: null, book: null })} onEdit={(o) => setOrderForm({ order: o, book: null })}
+          onAddToCatalog={setCatalogFrom} />
+      )}
+      {!loading && view === "supply" && (
+        <PedidoProveedor orders={orders} books={books} suppliers={suppliers} supplierOrders={supplierOrders}
+          ctx={ctx} run={run} notify={notify} />
+      )}
       {!loading && view === "stock" && (
         <>
           <Stats books={books} sales={sales} />
@@ -221,7 +277,7 @@ export default function App() {
         {editing && (
           <>
             <h2 className="mh">{editing === "new" ? "Agregar libro" : "Editar libro"}</h2>
-            <BookForm key={editing === "new" ? "new" : editing.id} initial={editing === "new" ? null : editing}
+            <BookForm key={editing === "new" ? "new" : editing.id} initial={editing === "new" ? null : editing} suppliers={suppliers}
               onSubmit={saveBook} onCancel={() => setEditing(null)} />
           </>
         )}
@@ -229,12 +285,33 @@ export default function App() {
       <Modal open={!!selBook} onClose={() => setSelected(null)} label="Detalle del libro">
         {selBook && (
           <BookDetail book={selBook} sold={sold[selBook.id] || 0} revenue={rev[selBook.id] || 0} inCart={cart[selBook.id] || 0}
+            pending={open[selBook.id] || 0} reserved={reserved[selBook.id] || 0}
+            onOrder={() => { setOrderForm({ order: null, book: selBook }); setSelected(null); }}
             onAdd={(n) => addToCart(selBook, n)} onEdit={() => { setEditing(selBook); setSelected(null); }}
             onDelete={() => removeBook(selBook)} onClose={() => setSelected(null)} />
         )}
       </Modal>
       <Modal open={cartOpen && lines.length > 0} onClose={() => setCartOpen(false)} label="Venta en curso">
         <Cart lines={lines} onQty={setQty} onRemove={removeLine} onClear={() => setCart({})} onConfirm={checkout} />
+      </Modal>
+
+      <Modal open={!!orderForm} onClose={() => setOrderForm(null)} label="Encargo">
+        {orderForm && (
+          <>
+            <h2 className="mh">{orderForm.order ? "Editar encargo" : "Nuevo encargo"}</h2>
+            <EncargoForm key={orderForm.order?.id || orderForm.book?.id || "new"} initial={orderForm.order} book={orderForm.book}
+              books={books} suppliers={suppliers} orders={orders} onSubmit={saveOrder} onMerge={mergeOrder} onCancel={() => setOrderForm(null)} />
+          </>
+        )}
+      </Modal>
+      <Modal open={!!catalogFrom} onClose={() => setCatalogFrom(null)} label="Agregar al catálogo">
+        {catalogFrom && (
+          <>
+            <h2 className="mh">Agregar al catálogo</h2>
+            <BookForm key={catalogFrom.id} suppliers={suppliers} submitLabel="Agregar libro" onSubmit={saveCatalogBook} onCancel={() => setCatalogFrom(null)}
+              initial={{ title: catalogFrom.title, author: catalogFrom.author, genre: catalogFrom.genre, language: catalogFrom.language, price: "", stock: 0 }} />
+          </>
+        )}
       </Modal>
 
       <div ref={toastRef} popover="manual" className={"toast " + (toast?.type || "")} role="status">{toast?.msg}</div>
