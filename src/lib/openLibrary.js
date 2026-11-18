@@ -1,20 +1,28 @@
 // Open Library: gratis, sin API key. Pedimos solo los campos necesarios (parámetro "fields").
-const FIELDS = "key,title,author_name,first_publish_year,cover_i,language,subject";
+const FIELDS = "key,title,author_name,first_publish_year,cover_i,language,subject,editions,editions.key,editions.title,editions.cover_i";
 
 export async function searchBooks(text, signal) {
   const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(text)}&fields=${FIELDS}&limit=6`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error("openlibrary " + res.status);
   const data = await res.json();
-  return (data.docs || []).map((d) => ({
-    key: d.key,
-    title: d.title,
-    author: (d.author_name || [])[0] || "",
-    year: d.first_publish_year,
-    coverUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : null,
-    language: guessLanguage(d.language),
-    genre: guessGenre(d.subject),
-  }));
+
+  return (data.docs || []).map((d) => {
+    const editionCover = d.editions?.docs?.find((edition) => edition.cover_i)?.cover_i;
+    const coverId = d.cover_i === 4752788
+      ? editionCover || d.cover_i
+      : d.cover_i;
+
+    return {
+      key: d.key,
+      title: d.title,
+      author: (d.author_name || [])[0] || "",
+      year: d.first_publish_year,
+      coverUrl: coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : null,
+      language: guessLanguage(d.language),
+      genre: guessGenre(d.subject),
+    };
+  });
 }
 
 // Open Library lista los idiomas de todas las ediciones; priorizamos español, inglés y portugués.

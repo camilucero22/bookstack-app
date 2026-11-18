@@ -26,6 +26,14 @@ export default function TitleSearch({ value, onChange, onPick }) {
 
   const pick = (b) => { typed.current = false; setOpen(false); setResults([]); onPick(b); };
 
+  const markCoverUnavailable = (key) => {
+    setResults((current) =>
+      current.map((book) =>
+        book.key === key ? { ...book, coverUrl: null } : book
+      )
+    );
+  };
+
   const onKeyDown = (e) => {
     if (!open || !results.length) return;
     if (e.key === "ArrowDown") { e.preventDefault(); setActive((active + 1) % results.length); }
@@ -36,7 +44,7 @@ export default function TitleSearch({ value, onChange, onPick }) {
 
   const hint = status === "loading" ? "Buscando en Open Library…"
     : status === "error" ? "No se pudo consultar Open Library. Podés cargar el libro a mano."
-    : "Escribí al menos 3 letras para buscar libros reales.";
+      : "Escribí al menos 3 letras para buscar libros reales.";
 
   return (
     <div className="ac">
@@ -54,7 +62,24 @@ export default function TitleSearch({ value, onChange, onPick }) {
           {results.map((b, i) => (
             <li key={b.key} id={`${id}-${i}`} role="option" aria-selected={i === active}
               className={i === active ? "on" : ""} onMouseDown={(e) => { e.preventDefault(); pick(b); }}>
-              {b.coverUrl ? <img src={b.coverUrl} alt="" width="32" height="48" loading="lazy" /> : <span className="nocover" />}
+              {b.coverUrl ? (
+                <img
+                  src={b.coverUrl}
+                  alt=""
+                  width="32"
+                  height="48"
+                  loading="lazy"
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    if (img.naturalWidth <= 1 || img.naturalHeight <= 1) {
+                      markCoverUnavailable(b.key);
+                    }
+                  }}
+                  onError={() => markCoverUnavailable(b.key)}
+                />
+              ) : (
+                <span className="nocover" />
+              )}
               <span><strong>{b.title}</strong><small>{b.author}{b.year ? `, ${b.year}` : ""}</small></span>
             </li>
           ))}

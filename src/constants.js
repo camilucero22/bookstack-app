@@ -1,11 +1,11 @@
 // color/text: chips de filtro. bg: acabado del lomo, inspirado en los lomos de Stripe Press.
 export const GENRES = [
-  { name: "Ficción", color: "#2B49D3", text: "#fff", bg: "linear-gradient(135deg,#3555E8,#1B2A8F)" },
-  { name: "No ficción", color: "#E8442B", text: "#fff", bg: "linear-gradient(115deg,#E8442B 58%,#F2A33A)" },
-  { name: "Ciencia y tecnología", color: "#59684B", text: "#F6E7A6", bg: "linear-gradient(135deg,#667556,#3E4A35)" },
-  { name: "Infantil", color: "#F4C81E", text: "#000", bg: "linear-gradient(100deg,#F4C81E,#F2762A)" },
-  { name: "Historia", color: "#5A2D86", text: "#fff", bg: "linear-gradient(135deg,#7440AC,#3F1D63)" },
-  { name: "Otros", color: "#D9D9D6", text: "#000", bg: "linear-gradient(135deg,#ECECE9,#BDBDB8)" },
+  { name: "Ficción", color: "#6876B8", text: "#343B59", bg: "linear-gradient(135deg, #A8B1D5, #7D89B8)" },
+  { name: "No ficción", color: "#C47D70", text: "#583B36", bg: "linear-gradient(135deg, #D9A69C, #C48679)" },
+  { name: "Ciencia y tecnología", color: "#78866F", text: "#354333", bg: "linear-gradient(135deg, #AAB49F, #84927A)" },
+  { name: "Infantil", color: "#C5A75F", text: "#51472F", bg: "linear-gradient(135deg, #E7D59B, #D5B978)" },
+  { name: "Historia", color: "#88739E", text: "#443650", bg: "linear-gradient(135deg, #B7A6C8, #9582AA)" },
+  { name: "Otros", color: "#B8B8B2", text: "#555650", bg: "linear-gradient(135deg, #E4E3DE, #C9C9C2)" },
 ];
 export const LANGS = ["Español", "Inglés", "Portugués", "Otro"];
 export const AGES = ["Sin dato", "Hasta 17", "18-29", "30-44", "45-59", "60+"];

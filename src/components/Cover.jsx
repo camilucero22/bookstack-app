@@ -1,8 +1,9 @@
 
 import { useState } from "react";
 import { GENRES } from "../constants";
+import { BookOpen } from "lucide-react";
 
-export default function Cover({ book, size = "M" }) {
+export default function Cover({ book, size = "M", priority = true }) {
   const [bad, setBad] = useState(false);
 
   const g =
@@ -17,9 +18,16 @@ export default function Cover({ book, size = "M" }) {
     return (
       <img
         className="cover"
-        loading="lazy"
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
         alt={`Tapa de ${book.title}`}
         src={src}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          if (img.naturalWidth <= 1 || img.naturalHeight <= 1) {
+            setBad(true);
+          }
+        }}
         onError={() => setBad(true)}
       />
     );
@@ -30,8 +38,14 @@ export default function Cover({ book, size = "M" }) {
       className="cover gen"
       style={{ background: g.bg, color: g.text }}
     >
-      <strong>{book.title}</strong>
-      <span>{book.author}</span>
+      <div className="gen-icon">
+        <BookOpen size={27} strokeWidth={1.5} />
+      </div>
+
+      <div className="gen-info">
+        <strong>{book.title}</strong>
+        <span>{book.author}</span>
+      </div>
     </div>
   );
 }

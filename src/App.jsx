@@ -17,7 +17,7 @@ import EncargoForm from "./components/EncargoForm";
 import PedidoProveedor from "./components/PedidoProveedor";
 import * as E from "./lib/encargosDb";
 
-const SORTS = ["Alfabético", "Género (A-Z)", "Año publicación", "Autor (A-Z)", "Más vendidos", "Menor stock"];
+const SORTS = ["Más recientes", "Alfabético", "Género (A-Z)", "Año publicación", "Autor (A-Z)", "Más vendidos", "Menor stock"];
 const money = (n) => "$" + n.toLocaleString("es-AR");
 const Icon = ({ children }) => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"
@@ -114,7 +114,7 @@ export default function App() {
     const isNew = editing === "new";
     const ok = await run(
       () => isNew ? addDoc(collection(db, "users", uid, "books"), { ...data, createdAt: serverTimestamp() })
-                  : updateDoc(bookRef(editing.id), data),
+        : updateDoc(bookRef(editing.id), data),
       isNew ? "Libro agregado" : "Libro actualizado");
     if (ok) setEditing(null);
   };
@@ -166,6 +166,8 @@ export default function App() {
   });
 
   const cmp = {
+    "Más recientes": (a, b) =>
+      (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0),
     "Alfabético": (a, b) => a.title.localeCompare(b.title),
     "Género (A-Z)": (a, b) => a.genre.localeCompare(b.genre) || a.title.localeCompare(b.title),
     "Año publicación": (a, b) => (b.year ?? -1) - (a.year ?? -1),
