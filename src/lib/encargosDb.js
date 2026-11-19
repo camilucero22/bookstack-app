@@ -1,9 +1,9 @@
 import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch, increment, serverTimestamp } from "firebase/firestore";
 import { ACTIVE, allocateReception, norm } from "./encargos";
 
-// ctx = { db, uid }
-const col = (c, name) => collection(c.db, "users", c.uid, name);
-const ref = (c, name, id) => doc(c.db, "users", c.uid, name, id);
+// ctx = { db }
+const col = (c, name) => collection(c.db, "shared", "libreria", name);
+const ref = (c, name, id) => doc(c.db, "shared", "libreria", name, id);
 
 /* Encargos */
 export const createOrder = (c, data) => addDoc(col(c, "customerOrders"), {

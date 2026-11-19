@@ -58,41 +58,66 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // El aviso usa popover para mostrarse por encima de las ventanas modales.
-  useEffect(() => {
-    const el = toastRef.current;
-    if (!el) return;
-    try { toast ? el.showPopover() : el.hidePopover(); } catch { /* ya estaba en ese estado */ }
-  }, [toast]);
-
   useEffect(() => {
     ensureUser()
       .then((u) => setUid(u.uid))
-      .catch((e) => { console.error(e); setLoading(false); setFatal(e.code || e.message); });
+      .catch((e) => {
+        console.error(e);
+        setLoading(false);
+        setFatal(e.code || e.message);
+      });
   }, []);
 
-  // Consulta en tiempo real: cualquier cambio en Firestore actualiza la pantalla.
   useEffect(() => {
     if (!uid) return;
-    const onErr = () => { setLoading(false); notify("error", "No se pudieron leer los datos. Revisá las reglas de Firestore."); };
-    const u1 = onSnapshot(query(collection(db, "users", uid, "books"), orderBy("title")),
-      (s) => { setBooks(s.docs.map((d) => ({ id: d.id, ...d.data() }))); setLoading(false); }, onErr);
-    const u2 = onSnapshot(query(collection(db, "users", uid, "sales"), orderBy("date", "desc")),
-      (s) => setSales(s.docs.map((d) => ({ id: d.id, ...d.data() }))), onErr);
-    const snap = (name, field, dir, set) => onSnapshot(query(collection(db, "users", uid, name), orderBy(field, dir)),
-      (s) => set(s.docs.map((d) => ({ id: d.id, ...d.data() }))), onErr);
+
+    const onErr = (e) => {
+      console.error(e);
+      setLoading(false);
+      notify("error", "No se pudieron leer los datos. Revisá las reglas de Firestore.");
+    };
+
+    const u1 = onSnapshot(
+      query(collection(db, "shared", "libreria", "books"), orderBy("title")),
+      (s) => {
+        setBooks(s.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      onErr
+    );
+
+    const u2 = onSnapshot(
+      query(collection(db, "shared", "libreria", "sales"), orderBy("date", "desc")),
+      (s) => setSales(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      onErr
+    );
+
+    const snap = (name, field, dir, set) =>
+      onSnapshot(
+        query(collection(db, "shared", "libreria", name), orderBy(field, dir)),
+        (s) => set(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        onErr
+      );
+
     const u3 = snap("customerOrders", "createdAt", "desc", setOrders);
     const u4 = snap("suppliers", "name", "asc", setSuppliers);
     const u5 = snap("supplierOrders", "orderedAt", "desc", setSupplierOrders);
-    return () => { u1(); u2(); u3(); u4(); u5(); };
+
+    return () => {
+      u1();
+      u2();
+      u3();
+      u4();
+      u5();
+    };
   }, [uid]);
 
   const run = async (fn, okMsg) => {
     try { await fn(); notify("ok", okMsg); return true; }
     catch (e) { console.error(e); notify("error", "No se pudo guardar el cambio (" + (e.code || e.message) + ")"); return false; }
   };
-  const bookRef = (id) => doc(db, "users", uid, "books", id);
-  const ctx = { db, uid };
+  const bookRef = (id) => doc(db, "shared", "libreria", "books", id);
+  const ctx = { db };
 
   // Encargos: lo recibido está reservado (no cuenta como stock disponible) y lo pendiente/pedido se avisa en el detalle.
   const reserved = {}, open = {};
@@ -121,7 +146,11 @@ export default function App() {
   const saveBook = async (data) => {
     const isNew = editing === "new";
     const ok = await run(
-      () => isNew ? addDoc(collection(db, "users", uid, "books"), { ...data, createdAt: serverTimestamp() })
+      () => isNew
+        ? addDoc(collection(db, "shared", "libreria", "books"), {
+          ...data,
+          createdAt: serverTimestamp()
+        })
         : updateDoc(bookRef(editing.id), data),
       isNew ? "Libro agregado" : "Libro actualizado");
     if (ok) setEditing(null);
@@ -160,7 +189,7 @@ export default function App() {
       }));
       const batch = writeBatch(db);
       lines.forEach(({ book, qty }) => batch.update(bookRef(book.id), { stock: increment(-qty) }));
-      batch.set(doc(collection(db, "users", uid, "sales")),
+      batch.set(doc(collection(db, "shared", "libreria", "sales")),
         { items, total: cartTotal, units: cartUnits, ageRange, date: serverTimestamp() });
       await batch.commit();
     }, "Venta registrada");
