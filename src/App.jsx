@@ -58,7 +58,7 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  
+
   useEffect(() => {
     ensureUser()
       .then((u) => setUid(u.uid))
@@ -146,14 +146,21 @@ export default function App() {
 
   const saveBook = async (data) => {
     const isNew = editing === "new";
+    const bookData = {
+      ...data,
+      needsPricing: false,
+    };
+
     const ok = await run(
       () => isNew
         ? addDoc(collection(db, "shared", "libreria", "books"), {
-          ...data,
+          ...bookData,
           createdAt: serverTimestamp()
         })
-        : updateDoc(bookRef(editing.id), data),
-      isNew ? "Libro agregado" : "Libro actualizado");
+        : updateDoc(bookRef(editing.id), bookData),
+      isNew ? "Libro agregado" : "Libro actualizado"
+    );
+
     if (ok) setEditing(null);
   };
 
@@ -168,14 +175,28 @@ export default function App() {
   const lines = Object.entries(cart)
     .map(([id, qty]) => ({ book: books.find((b) => b.id === id), qty }))
     .map((l) => (l.book ? { ...l, qty: Math.min(l.qty, l.book.stock) } : l))
-    .filter((l) => l.book && l.qty > 0);
+    .filter((l) =>
+      l.book &&
+      l.qty > 0 &&
+      l.book.needsPricing !== true &&
+      l.book.price > 0
+    );
   const cartUnits = lines.reduce((a, l) => a + l.qty, 0);
   const cartTotal = lines.reduce((a, l) => a + l.qty * l.book.price, 0);
 
   useEffect(() => { if (!lines.length) setCartOpen(false); }, [lines.length]);
 
   const addToCart = (b, n) => {
-    setCart((c) => ({ ...c, [b.id]: Math.min((c[b.id] || 0) + n, b.stock) }));
+    if (b.needsPricing === true || b.price <= 0) {
+      notify("error", "Primero tenés que asignarle un precio a este libro");
+      return;
+    }
+
+    setCart((c) => ({
+      ...c,
+      [b.id]: Math.min((c[b.id] || 0) + n, b.stock)
+    }));
+
     setSelected(null);
     notify("ok", "Agregado a la venta");
   };
@@ -225,13 +246,24 @@ export default function App() {
     "Mayor stock": (a, b) =>
       (b.stock ?? 0) - (a.stock ?? 0)
   }[sort];
-
   const needle = q.trim().toLowerCase();
+
+  const pendingPricing = books.filter(
+    (b) => b.needsPricing === true
+  );
+
   const shown = books
-    .filter((b) => !needle || (b.title + " " + b.author + " " + b.genre).toLowerCase().includes(needle))
+    .filter((b) => b.needsPricing !== true)
+    .filter((b) =>
+      !needle ||
+      (b.title + " " + b.author + " " + b.genre)
+        .toLowerCase()
+        .includes(needle)
+    )
     .sort((a, b) =>
       sortDirection === "asc" ? cmp(a, b) : cmp(b, a)
     );
+
   const selBook = books.find((b) => b.id === selected);
 
   if (fatal) return (
@@ -281,6 +313,49 @@ export default function App() {
       {!loading && view === "stock" && (
         <>
           <Stats books={books} sales={sales} />
+
+          {pendingPricing.length > 0 && (
+            <section className="pending-pricing">
+              <div className="headrow">
+                <h2>
+                  Precios pendientes
+                  <span className="count">{pendingPricing.length}</span>
+                </h2>
+              </div>
+
+              <p className="muted">
+                Estos libros ya fueron recibidos, pero necesitan un precio
+                antes de estar disponibles para la venta.
+              </p>
+
+              <ul className="books">
+                {pendingPricing.map((b) => (
+                  <li key={b.id}>
+                    <div className="card">
+                      <Cover book={b} />
+
+                      <span className="meta">
+                        <strong>{b.title}</strong>
+                        <em>{b.author}</em>
+                        <small>{[b.genre, b.year].filter(Boolean).join(" · ")}</small>
+                      </span>
+
+                      <span className="badge low">
+                        Precio pendiente
+                      </span>
+
+                      <button
+                        className="btn sm solid"
+                        onClick={() => setEditing(b)}
+                      >
+                        Asignar precio
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <div className="searchbar">
             <Icon>
@@ -387,7 +462,13 @@ export default function App() {
       <Modal open={!!editing} onClose={() => setEditing(null)} label="Libro">
         {editing && (
           <>
-            <h2 className="mh">{editing === "new" ? "Agregar libro" : "Editar libro"}</h2>
+            <h2 className="mh">
+              {editing === "new"
+                ? "Agregar libro"
+                : editing.needsPricing
+                  ? "Asignar precio"
+                  : "Editar libro"}
+            </h2>
             <BookForm key={editing === "new" ? "new" : editing.id} initial={editing === "new" ? null : editing} suppliers={suppliers}
               onSubmit={saveBook} onCancel={() => setEditing(null)} />
           </>
