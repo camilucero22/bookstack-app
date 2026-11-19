@@ -1,7 +1,12 @@
 import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch, increment, serverTimestamp } from "firebase/firestore";
 import { ACTIVE, allocateReception, norm } from "./encargos";
 
+// Referencias a las colecciones compartidas
+const col = (c, name) =>
+  collection(c.db, "shared", "libreria", name);
 
+const ref = (c, name, id) =>
+  doc(c.db, "shared", "libreria", name, id);
 
 /* Encargos */
 export const createOrder = (c, data) => addDoc(col(c, "customerOrders"), {
