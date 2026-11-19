@@ -145,14 +145,22 @@ export default function App() {
 
   const saveBook = async (data) => {
     const isNew = editing === "new";
+
+    const bookData = {
+      ...data,
+      needsPricing: false,
+    };
+
     const ok = await run(
       () => isNew
         ? addDoc(collection(db, "shared", "libreria", "books"), {
-          ...data,
+          ...bookData,
           createdAt: serverTimestamp()
         })
-        : updateDoc(bookRef(editing.id), data),
-      isNew ? "Libro agregado" : "Libro actualizado");
+        : updateDoc(bookRef(editing.id), bookData),
+      isNew ? "Libro agregado" : "Libro actualizado"
+    );
+
     if (ok) setEditing(null);
   };
 
@@ -174,7 +182,16 @@ export default function App() {
   useEffect(() => { if (!lines.length) setCartOpen(false); }, [lines.length]);
 
   const addToCart = (b, n) => {
-    setCart((c) => ({ ...c, [b.id]: Math.min((c[b.id] || 0) + n, b.stock) }));
+    if (b.needsPricing === true || b.price <= 0) {
+      notify("error", "Este libro necesita un precio antes de venderse");
+      return;
+    }
+
+    setCart((c) => ({
+      ...c,
+      [b.id]: Math.min((c[b.id] || 0) + n, b.stock)
+    }));
+
     setSelected(null);
     notify("ok", "Agregado a la venta");
   };
@@ -227,7 +244,11 @@ export default function App() {
 
   const needle = q.trim().toLowerCase();
   const shown = books
-    .filter((b) => !needle || (b.title + " " + b.author + " " + b.genre).toLowerCase().includes(needle))
+    .filter((b) => b.stock > 0 || b.needsPricing === true)
+    .filter((b) =>
+      !needle ||
+      (b.title + " " + b.author + " " + b.genre).toLowerCase().includes(needle)
+    )
     .sort((a, b) =>
       sortDirection === "asc" ? cmp(a, b) : cmp(b, a)
     );
@@ -355,9 +376,15 @@ export default function App() {
                       <em>{b.author}</em>
                       <small>{[b.genre, b.year].filter(Boolean).join(" · ")}</small>
                     </span>
-                    <span className={"badge" + (b.stock <= 2 ? " low" : "")}>
-                      {b.stock === 0 ? "Sin stock" : `${b.stock} en stock`}
-                    </span>
+                    {b.needsPricing === true ? (
+                      <span className="badge low">
+                        Precio pendiente
+                      </span>
+                    ) : (
+                      <span className={"badge" + (b.stock <= 2 ? " low" : "")}>
+                        {b.stock === 0 ? "Sin stock" : `${b.stock} en stock`}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}

@@ -19,19 +19,27 @@ const sync = (e) => {
 };
 
 export default function BookForm({ initial, suppliers = [], submitLabel, onSubmit, onCancel }) {
+  console.log("LIBRO RECIBIDO EN BOOKFORM:", initial);
   const [f, setF] = useState(initial
     ? {
-      title: initial.title, author: initial.author, genre: initial.genre, language: initial.language, price: initial.price,
+      title: initial.title,
+      author: initial.author,
+      genre: initial.genre,
+      language: initial.language,
+      price: Number(initial.price) > 0 ? initial.price : "",
       stock: initial.stock, supplierId: initial.supplierId ?? "", year: initial.year ?? null, coverId: initial.coverId ?? null
     }
     : { title: "", author: "", genre: GENRES[0].name, language: LANGS[0], price: "", stock: "", supplierId: "", year: null, coverId: null });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
-  // Al elegir un libro real se completan título, autor, idioma, género, año y tapa; precio y stock los cargás vos.
   const pick = (b) => setF((p) => ({
-    ...p, title: b.title, author: b.author || p.author, language: b.language || p.language, genre: b.genre || p.genre,
-    year: b.year ?? null,
-    coverId: b.coverUrl ?? null,
+    ...p,
+    title: b.title,
+    author: b.author || p.author,
+    language: b.language || p.language,
+    genre: b.genre || p.genre,
+    year: b.year ?? p.year,
+    coverId: b.coverUrl ?? p.coverId,
   }));
 
   const submit = (e) => {
@@ -52,8 +60,17 @@ export default function BookForm({ initial, suppliers = [], submitLabel, onSubmi
         <Field name="language" label="Idioma">
           <select value={f.language} onChange={set("language")}>{LANGS.map((l) => <option key={l}>{l}</option>)}</select>
         </Field>
-        <Field name="price" label="Precio ($)" msg="El precio debe ser un entero mayor a 0.">
-          <input type="number" inputMode="numeric" min="1" step="1" value={f.price} onChange={set("price")} required aria-errormessage="price-e" />
+        <Field name="price" label="Precio ($)" msg="Ingresá un precio mayor a 0.">
+          <input
+            type="number"
+            inputMode="numeric"
+            min="1"
+            step="1"
+            value={f.price}
+            onChange={set("price")}
+            required
+            aria-errormessage="price-e"
+          />
         </Field>
         <Field name="stock" label="Stock (unidades)" msg="El stock debe ser un entero de 0 o más.">
           <input type="number" inputMode="numeric" min="0" step="1" value={f.stock} onChange={set("stock")} required aria-errormessage="stock-e" />

@@ -7,7 +7,7 @@ export default function TitleSearch({ value, onChange, onPick }) {
   const [status, setStatus] = useState("idle"); // idle | loading | error
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const typed = useRef(false); // solo buscamos cuando la persona escribe, no al abrir "Editar"
+  const typed = useRef(false);
   const id = useId();
 
   useEffect(() => {
@@ -24,7 +24,12 @@ export default function TitleSearch({ value, onChange, onPick }) {
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [value]);
 
-  const pick = (b) => { typed.current = false; setOpen(false); setResults([]); onPick(b); };
+  const pick = (b) => {
+    typed.current = false;
+    setOpen(false);
+    setResults([]);
+    onPick(b);
+  };
 
   const markCoverUnavailable = (key) => {
     setResults((current) =>
