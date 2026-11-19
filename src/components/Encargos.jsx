@@ -8,23 +8,44 @@ const Icon = ({ children }) => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
 );
-const FILTERS = ["all", "pending", "ordered", "received", "delivered", "cancelled"];
 
-export default function Encargos({ orders, books, suppliers, ctx, run, onNew, onEdit, onAddToCatalog }) {
+const StageIcon = ({ name }) => {
+  const icons = {
+    inbox: <><path d="M4 4h16v12h-4l-2 3h-4l-2-3H4z" /><path d="M4 12h4l2 3h4l2-3h4" /></>,
+    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    truck: <><path d="M3 6h11v11H3z" /><path d="M14 10h4l3 3v4h-7" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="18" r="2" /></>,
+    "package-check": <><path d="M12 3 3.5 7.5 12 12l8.5-4.5L12 3z" /><path d="M3.5 7.5V17L12 21l8.5-4V7.5" /><path d="M12 12v9" /><path d="m15 15 1.5 1.5L19 14" /></>,
+    "check-circle-2": <><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></>,
+    ban: <><circle cx="12" cy="12" r="9" /><path d="m5.6 5.6 12.8 12.8" /></>,
+  };
+
+  return <Icon>{icons[name]}</Icon>;
+};
+
+const FILTERS = [
+  { id: "all", label: "Todos", icon: "inbox" },
+  { id: "pending", label: "Pendiente", icon: "clock" },
+  { id: "ordered", label: "Pedido", icon: "truck" },
+  { id: "received", label: "Recibido", icon: "package-check" },
+  { id: "delivered", label: "Entregado", icon: "check-circle-2" },
+  { id: "cancelled", label: "Cancelado", icon: "ban" },
+];
+
+export default function Encargos({ orders, books, suppliers, ctx, run, onNew, onEdit }) {
   const [filter, setFilter] = useState("all");
-  const [archived, setArchived] = useState(false);
   const [q, setQ] = useState("");
   const [delivering, setDelivering] = useState(null);
 
   const bookById = Object.fromEntries(books.map((b) => [b.id, b]));
   const supById = Object.fromEntries(suppliers.map((s) => [s.id, s]));
-  const live = orders.filter((o) => !o.archived);
-  const count = (st) => live.filter((o) => o.status === st).length;
+  const count = (st) => orders.filter((o) => o.status === st).length;
   const needle = norm(q);
   const list = orders
-    .filter((o) => !!o.archived === archived && (archived || filter === "all" || o.status === filter))
-    .filter((o) => !needle || norm(o.customerName + " " + o.title + " " + o.author).includes(needle));
-
+    .filter((o) => filter === "all" || o.status === filter)
+    .filter((o) =>
+      !needle ||
+      norm(o.customerName + " " + o.title + " " + o.author).includes(needle)
+    );
   const go = (o, status, msg) => run(() => E.setStatus(ctx, o.id, status), msg);
   const cancel = async (o) => {
     if (!window.confirm(`¿Cancelar el encargo de ${o.customerName}?`)) return;
@@ -36,12 +57,10 @@ export default function Encargos({ orders, books, suppliers, ctx, run, onNew, on
   const remove = (o) => {
     if (window.confirm(`¿Eliminar el encargo de ${o.customerName}?`)) run(() => E.removeOrder(ctx, o.id), "Encargo eliminado");
   };
-  const archive = (o, value) => run(() => E.updateOrder(ctx, o.id, { archived: value }), value ? "Encargo archivado" : "Encargo desarchivado");
 
   const actions = (o) => {
     const edit = <button key="e" className="btn sm" onClick={() => onEdit(o)}>Editar</button>;
     const stop = <button key="c" className="btn sm danger" onClick={() => cancel(o)}>Cancelar</button>;
-    if (o.archived) return <button className="btn sm" onClick={() => archive(o, false)}>Desarchivar</button>;
     switch (o.status) {
       case "pending": return [
         <button key="o" className="btn sm solid" onClick={() => go(o, "ordered", "Marcado como pedido")}>Marcar pedido</button>,
@@ -53,14 +72,32 @@ export default function Encargos({ orders, books, suppliers, ctx, run, onNew, on
         <button key="p" className="btn sm" onClick={() => go(o, "pending", "Volvió a pendiente")}>Volver a pendiente</button>,
         edit, stop,
       ];
-      case "received": return [
-        <a key="w" className="btn sm solid" href={waLink(o.customerPhone, waMessage(o, bookById[o.bookId]))} target="_blank" rel="noopener noreferrer"
-          onClick={() => run(() => E.markNotified(ctx, o.id), "Marcado como avisado")}>Avisar por WhatsApp</a>,
-        <button key="t" className="btn sm" onClick={() => setDelivering(o)}>Entregar</button>,
-        !o.bookId && <button key="a" className="btn sm" onClick={() => onAddToCatalog(o)}>Agregar al catálogo</button>,
-        edit, stop,
-      ];
-      case "delivered": return <button className="btn sm" onClick={() => archive(o, true)}>Archivar</button>;
+      case "received": {
+        // Los encargos viejos pueden no tener `notifiedAt` (undefined): se tratan como "sin avisar".
+        const notified = !!o.notifiedAt;
+        return [
+          // Un solo <a>: abre WhatsApp con el enlace/mensaje existentes y, en el mismo clic,
+          // registra el aviso. Verde sólido la primera vez, verde suave sin borde en los recordatorios.
+          <a
+            key="w"
+            className={"btn sm " + (notified ? "wa-soft" : "wa")}
+            href={waLink(o.customerPhone, waMessage(o, bookById[o.bookId]))}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() =>
+              run(
+                () => E.markNotified(ctx, o.id),
+                notified ? "Aviso actualizado" : "Marcado como avisado"
+              )
+            }
+          >
+            {notified ? "Avisar nuevamente" : "Avisar por WhatsApp"}
+          </a>,
+          <button key="t" className="btn sm" onClick={() => setDelivering(o)}>Entregar</button>,
+          edit, stop,
+        ];
+      }
+      case "delivered": return null;
       default: return <button className="btn sm" onClick={() => remove(o)}>Eliminar</button>;
     }
   };
@@ -77,17 +114,38 @@ export default function Encargos({ orders, books, suppliers, ctx, run, onNew, on
         <input className="search" type="search" aria-label="Buscar por cliente o libro" placeholder="Buscar por cliente o libro"
           value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
-      <div className="sorts" role="group" aria-label="Filtrar por estado">
-        {FILTERS.map((s) => (
-          <button key={s} aria-pressed={!archived && filter === s} className={"sort" + (!archived && filter === s ? " on" : "")}
-            onClick={() => { setArchived(false); setFilter(s); }}>
-            {s === "all" ? "Todos" : STATUS[s].label}
-          </button>
-        ))}
-        <button aria-pressed={archived} className={"sort" + (archived ? " on" : "")} onClick={() => setArchived(!archived)}>Archivados</button>
+      <div className="order-stages" role="group" aria-label="Filtrar encargos por etapa">
+        {FILTERS.map((s) => {
+          const active = filter === s.id;
+
+          return (
+            <button
+              key={s.id}
+              aria-pressed={active}
+              className={"order-stage stage-" + s.id + (active ? " active" : "")}
+              onClick={() => {
+                setFilter(s.id);
+              }}
+            >
+              <span className="stage-icon">
+                <StageIcon name={s.icon} />
+
+                {s.id === "pending" && count("pending") > 0 && (
+                  <span className="stage-count">{count("pending")}</span>
+                )}
+              </span>
+
+              <span className="stage-label">{s.label}</span>
+              <span className="stage-indicator" />
+            </button>
+          );
+        })}
       </div>
+
       <div className="headrow">
-        <h2>{archived ? "Encargos archivados" : "Encargos"} <span className="count">{list.length}</span></h2>
+        <h2>
+          Encargos <span className="count">{list.length}</span>
+        </h2>
         <button className="btn solid" onClick={onNew}><Icon><path d="M12 5v14M5 12h14" /></Icon>Nuevo encargo</button>
       </div>
 
@@ -97,14 +155,25 @@ export default function Encargos({ orders, books, suppliers, ctx, run, onNew, on
             <li key={o.id} className="order">
               <div>
                 <div className="o-top"><strong>{o.customerName}</strong><span className={"chip " + o.status}>{STATUS[o.status].label}</span></div>
-                <small className="muted">{o.customerPhone}</small>
+                {o.status === "received" && o.notifiedAt && (
+                  <small className="muted">
+                    <span
+                      className="notification-badge"
+                      title={fmtDate(o.notifiedAt) ? `Último aviso: ${fmtDate(o.notifiedAt)}` : undefined}
+                    >
+                      Avisado ✓
+                    </span>
+                  </small>
+                )}
                 {o.status === "received" && (
-                  <small className="muted">{o.notifiedAt ? "Avisado ✓ · " : ""}WhatsApp a +{waNumber(o.customerPhone)}</small>
+                  <small className="muted">WhatsApp: +{waNumber(o.customerPhone)}</small>
                 )}
               </div>
               <div>
                 <strong>{o.qty > 1 ? `${o.qty} × ` : ""}{o.title}</strong>
-                <small className="muted">{o.author}{!o.bookId ? " · fuera del catálogo" : ""}</small>
+                <small className="muted">
+                  {o.author}{o.year ? ` · ${o.year}` : ""}
+                </small>
                 {o.notes && <small className="notes">“{o.notes}”</small>}
               </div>
               <div>

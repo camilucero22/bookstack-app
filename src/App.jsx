@@ -270,7 +270,7 @@ export default function App() {
           <div className="sorts" role="group" aria-label="Ordenar por">
             {SORTS.map((s) => {
               const labels = {
-                "Más recientes": sortDirection === "asc" ? "Más antiguos" : "Más recientes",
+                "Más recientes": sortDirection === "asc" ? "Más recientes" : "Más antiguos",
                 "Alfabético": sortDirection === "asc" ? "Alfabético (A-Z)" : "Alfabético (Z-A)",
                 "Género": sortDirection === "asc" ? "Género (A-Z)" : "Género (Z-A)",
                 "Año publicación": sortDirection === "asc" ? "Año más reciente" : "Año más antiguo",

@@ -9,32 +9,32 @@ const Field = ({ label, msg, className, children }) => (
 
 export default function EncargoForm({ initial, book, books, suppliers, orders, onSubmit, onMerge, onCancel }) {
   const s = initial || {};
-  const hasEmpty = books.some((b) => b.stock === 0);
-  const [mode, setMode] = useState(initial ? (initial.bookId ? "catalog" : "new") : book || hasEmpty ? "catalog" : "new");
-  const [showAll, setShowAll] = useState(false);
   const [dupe, setDupe] = useState(null);
   const [f, setF] = useState({
-    customerName: s.customerName || "", customerPhone: s.customerPhone || "",
-    bookId: s.bookId || book?.id || "", title: s.title || book?.title || "", author: s.author || book?.author || "",
-    publisher: s.publisher || "", isbn: s.isbn || "",
-    genre: s.genre || book?.genre || GENRES[0].name, language: s.language || book?.language || LANGS[0],
-    qty: s.qty || 1, deposit: s.deposit || "", supplierId: s.supplierId || "", notes: s.notes || "",
+    customerName: s.customerName || "",
+    customerPhone: s.customerPhone || "",
+    bookId: s.bookId || "",
+    title: s.title || "",
+    author: s.author || "",
+    year: s.year || "",
+    publisher: s.publisher || "",
+    isbn: s.isbn || "",
+    genre: s.genre || GENRES[0].name,
+    language: s.language || LANGS[0],
+    qty: s.qty || 1,
+    deposit: s.deposit || "",
+    supplierId: s.supplierId || "",
+    notes: s.notes || "",
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-  const chosen = books.find((b) => b.id === f.bookId);
-  const options = showAll ? books : books.filter((b) => b.stock === 0 || b.id === f.bookId);
-
-  const switchMode = (m) => {
-    setMode(m);
-    setF((p) => ({ ...p, bookId: "", title: "", author: "", publisher: "", isbn: "" }));
-  };
-  const pickCatalog = (e) => {
-    const b = books.find((x) => x.id === e.target.value);
-    setF((p) => b
-      ? { ...p, bookId: b.id, title: b.title, author: b.author, genre: b.genre, language: b.language }
-      : { ...p, bookId: "", title: "", author: "" });
-  };
-  const pickReal = (b) => setF((p) => ({ ...p, title: b.title, author: b.author || p.author, language: b.language || p.language, genre: b.genre || p.genre }));
+  const pickReal = (b) => setF((p) => ({
+    ...p,
+    title: b.title,
+    author: b.author || p.author,
+    year: b.year || "",
+    language: b.language || p.language,
+    genre: b.genre || p.genre
+  }));
 
   const data = () => ({
     ...f, customerName: f.customerName.trim(), customerPhone: f.customerPhone.trim(), title: f.title.trim(), author: f.author.trim(),
@@ -58,40 +58,37 @@ export default function EncargoForm({ initial, book, books, suppliers, orders, o
           <input type="tel" inputMode="tel" value={f.customerPhone} onChange={set("customerPhone")} required pattern="[0-9 +()\-]{8,}" placeholder="11 5555 1234" />
           <small className="hint">Sin 0 ni 15 (ej: 11 5555 1234).</small>
         </Field>
-
-        <div className="wide seg" role="group" aria-label="Origen del libro">
-          <button type="button" className={"sort" + (mode === "catalog" ? " on" : "")} aria-pressed={mode === "catalog"} onClick={() => switchMode("catalog")}>Del catálogo</button>
-          <button type="button" className={"sort" + (mode === "new" ? " on" : "")} aria-pressed={mode === "new"} onClick={() => switchMode("new")}>Libro nuevo</button>
+        <div className="wide">
+          <TitleSearch
+            value={f.title}
+            onChange={(v) => setF((p) => ({ ...p, title: v }))}
+            onPick={pickReal}
+          />
         </div>
 
-        {mode === "catalog" ? (
-          <Field label="Libro" className="wide">
-            <select value={f.bookId} onChange={pickCatalog} required>
-              <option value="">Elegí un libro…</option>
-              {options.map((b) => <option key={b.id} value={b.id}>{b.title}, {b.author} ({b.stock} en stock)</option>)}
-            </select>
-            <small className="hint">
-              {chosen?.stock > 0 ? `Ojo: este libro tiene ${chosen.stock} en stock. ` : ""}
-              {!hasEmpty && !showAll ? "No hay libros sin stock. " : ""}
-              <button type="button" className="link" onClick={() => setShowAll(!showAll)}>{showAll ? "Mostrar solo sin stock" : "Mostrar todo el catálogo"}</button>
-            </small>
-          </Field>
-        ) : (
-          <>
-            <div className="wide"><TitleSearch value={f.title} onChange={(v) => setF((p) => ({ ...p, title: v }))} onPick={pickReal} /></div>
-            <Field label="Autor" msg="Escribí el autor.">
-              <input value={f.author} onChange={set("author")} required pattern=".*\S.*" />
-            </Field>
-            <Field label="Editorial (opcional)"><input value={f.publisher} onChange={set("publisher")} /></Field>
-            <Field label="ISBN (opcional)"><input value={f.isbn} onChange={set("isbn")} inputMode="numeric" /></Field>
-            <Field label="Género">
-              <select value={f.genre} onChange={set("genre")}>{GENRES.map((g) => <option key={g.name}>{g.name}</option>)}</select>
-            </Field>
-            <Field label="Idioma">
-              <select value={f.language} onChange={set("language")}>{LANGS.map((l) => <option key={l}>{l}</option>)}</select>
-            </Field>
-          </>
-        )}
+        <Field label="Autor" msg="Escribí el autor.">
+          <input value={f.author} onChange={set("author")} required pattern=".*\S.*" />
+        </Field>
+
+        <Field label="Editorial (opcional)">
+          <input value={f.publisher} onChange={set("publisher")} />
+        </Field>
+
+        <Field label="ISBN (opcional)">
+          <input value={f.isbn} onChange={set("isbn")} inputMode="numeric" />
+        </Field>
+
+        <Field label="Género">
+          <select value={f.genre} onChange={set("genre")}>
+            {GENRES.map((g) => <option key={g.name}>{g.name}</option>)}
+          </select>
+        </Field>
+
+        <Field label="Idioma">
+          <select value={f.language} onChange={set("language")}>
+            {LANGS.map((l) => <option key={l}>{l}</option>)}
+          </select>
+        </Field>
 
         <Field label="Cantidad" msg="La cantidad debe ser un entero mayor a 0.">
           <input type="number" inputMode="numeric" min="1" step="1" value={f.qty} onChange={set("qty")} required />

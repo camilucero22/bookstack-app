@@ -43,53 +43,159 @@ export async function cancelOrder(c, o, restock) {
 
 /* Pedidos al proveedor */
 // groups: [{ id, supplier, items }]. Crea un pedido por proveedor y pasa sus encargos a "Pedido".
+/* Pedidos al proveedor */
 export async function placeSupplierOrders(c, groups) {
   const batch = writeBatch(c.db);
+
   groups.forEach((g) => {
     const so = doc(col(c, "supplierOrders"));
+
     batch.set(so, {
-      supplierId: g.id, supplierName: g.supplier?.name || "Sin proveedor asignado",
-      status: "ordered", orderedAt: serverTimestamp(), receivedAt: null,
+      supplierId: g.id || null,
+      supplierName: g.supplier?.name || "Pedido general",
+      status: "ordered",
+      orderedAt: serverTimestamp(),
+      receivedAt: null,
       lines: g.items.map((l) => ({
-        bookId: l.bookId || null, title: l.title, author: l.author || "", isbn: l.isbn || "",
-        kind: l.kind, qty: l.qty, customers: l.customers || 0, orderIds: l.orderIds, receivedQty: 0,
+        bookId: l.bookId || null,
+        title: l.title,
+        author: l.author || "",
+        isbn: l.isbn || "",
+        kind: l.kind,
+        qty: l.qty,
+        customers: l.customers || 0,
+        orderIds: l.orderIds || [],
+        receivedQty: 0,
       })),
     });
-    g.items.forEach((l) => l.orderIds.forEach((id) =>
-      batch.update(ref(c, "customerOrders", id), { status: "ordered", orderedAt: serverTimestamp(), supplierOrderId: so.id })));
+
+    g.items.forEach((l) =>
+      (l.orderIds || []).forEach((id) =>
+        batch.update(ref(c, "customerOrders", id), {
+          status: "ordered",
+          orderedAt: serverTimestamp(),
+          supplierOrderId: so.id,
+        })
+      )
+    );
   });
+
   await batch.commit();
 }
-
 // received: unidades que llegaron por línea. Cubren encargos (los más viejos primero) y el resto suma al stock.
 export async function receiveSupplierOrder(c, so, received, ordersById, books) {
   const batch = writeBatch(c.db);
-  const exists = new Set(books.map((b) => b.id));
+  const bookById = Object.fromEntries(books.map((b) => [b.id, b]));
+
   let covered = 0;
+
   const lines = so.lines.map((l, i) => {
     const r = allocateReception(l, received[i], ordersById);
-    r.covered.forEach((id) => batch.update(ref(c, "customerOrders", id), { status: "received", receivedAt: serverTimestamp() }));
-    if (r.surplus > 0 && l.bookId && exists.has(l.bookId)) batch.update(ref(c, "books", l.bookId), { stock: increment(r.surplus) });
+
+    r.covered.forEach((id) =>
+      batch.update(ref(c, "customerOrders", id), {
+        status: "received",
+        receivedAt: serverTimestamp(),
+      })
+    );
+
+    // Libro que ya existe en el catálogo.
+    if (l.bookId && bookById[l.bookId]) {
+      if (r.surplus > 0) {
+        batch.update(ref(c, "books", l.bookId), {
+          stock: increment(r.surplus),
+        });
+      }
+    }
+
+    // Libro agregado manualmente que todavía no existe.
+    else if (!l.bookId && received[i] > 0) {
+      const newBook = doc(col(c, "books"));
+
+      batch.set(newBook, {
+        title: l.title,
+        author: l.author || "",
+        isbn: l.isbn || "",
+        genre: l.genre || "Ficción",
+        language: l.language || "Español",
+        price: Number(l.price || 0),
+        stock: Number(received[i]),
+        supplierId: null,
+        year: l.year || null,
+        coverId: l.coverId || null,
+        createdAt: serverTimestamp(),
+      });
+
+      // Vincula encargos existentes que todavía no tengan bookId.
+      Object.values(ordersById)
+        .filter((o) =>
+          !o.bookId &&
+          ACTIVE.includes(o.status) &&
+          norm(o.title) === norm(l.title) &&
+          norm(o.author) === norm(l.author)
+        )
+        .forEach((o) =>
+          batch.update(ref(c, "customerOrders", o.id), {
+            bookId: newBook.id,
+          })
+        );
+    }
+
     covered += r.covered.length;
-    return { ...l, receivedQty: received[i] };
+
+    return {
+      ...l,
+      receivedQty: received[i],
+    };
   });
-  batch.update(ref(c, "supplierOrders", so.id), { status: "received", receivedAt: serverTimestamp(), lines });
+
+  batch.update(ref(c, "supplierOrders", so.id), {
+    status: "received",
+    receivedAt: serverTimestamp(),
+    lines,
+  });
+
   await batch.commit();
   return covered;
 }
 
-// Un libro encargado que no estaba en el catálogo: se crea y se vincula a sus encargos activos.
+  // Un libro encargado que no estaba en el catálogo: se crea y se vincula a sus encargos activos.
+// Un libro encargado que no estaba en el catálogo:
+// se crea y se vincula a sus encargos activos.
 export async function addBookFromOrder(c, data, o, all) {
   const batch = writeBatch(c.db);
   const book = doc(col(c, "books"));
-  batch.set(book, { ...data, createdAt: serverTimestamp() });
-  all.filter((x) => !x.bookId && ACTIVE.includes(x.status) && norm(x.title) === norm(o.title) && norm(x.author) === norm(o.author))
-    .forEach((x) => batch.update(ref(c, "customerOrders", x.id), { bookId: book.id }));
+
+  batch.set(book, {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+
+  all
+    .filter(
+      (x) =>
+        !x.bookId &&
+        ACTIVE.includes(x.status) &&
+        norm(x.title) === norm(o.title) &&
+        norm(x.author) === norm(o.author)
+    )
+    .forEach((x) =>
+      batch.update(ref(c, "customerOrders", x.id), {
+        bookId: book.id,
+      })
+    );
+
   await batch.commit();
 }
 
 /* Proveedores */
-export const saveSupplier = (c, id, data) => id
-  ? updateDoc(ref(c, "suppliers", id), data)
-  : addDoc(col(c, "suppliers"), { ...data, createdAt: serverTimestamp() });
-export const removeSupplier = (c, id) => deleteDoc(ref(c, "suppliers", id));
+export const saveSupplier = (c, id, data) =>
+  id
+    ? updateDoc(ref(c, "suppliers", id), data)
+    : addDoc(col(c, "suppliers"), {
+        ...data,
+        createdAt: serverTimestamp(),
+      });
+
+export const removeSupplier = (c, id) =>
+  deleteDoc(ref(c, "suppliers", id));

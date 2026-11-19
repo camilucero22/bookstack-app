@@ -1,8 +1,15 @@
 import { useMemo, useState } from "react";
 import Modal from "./Modal";
-import Suppliers from "./Suppliers";
 import * as E from "../lib/encargosDb";
-import { NO_SUPPLIER, buildDraft, draftToCsv, draftToText, fmtDate, groupItems } from "../lib/encargos";
+import {
+  NO_SUPPLIER,
+  buildDraft,
+  draftToCsv,
+  draftToText,
+  fmtDate,
+  groupItems,
+} from "../lib/encargos";
+import TitleSearch from "./TitleSearch";
 
 const SUGGESTED_QTY = 3;
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -36,13 +43,62 @@ function Recepcion({ so, onConfirm, onCancel }) {
 export default function PedidoProveedor({ orders, books, suppliers, supplierOrders, ctx, run, notify }) {
   const [drafting, setDrafting] = useState(false);
   const [sel, setSel] = useState({}); // sugerencias que se decidió sumar: { clave: cantidad }
+  const [manual, setManual] = useState([]);
+  const [manualTitle, setManualTitle] = useState("");
+  const [manualBook, setManualBook] = useState(null);
+  const [manualQty, setManualQty] = useState(1);
   const [showSup, setShowSup] = useState(false);
   const [receiving, setReceiving] = useState(null);
 
-  const groups = useMemo(() => buildDraft(orders, books, suppliers), [orders, books, suppliers]);
-  const finals = groups.map((g) => ({ ...g, items: groupItems(g, sel) })).filter((g) => g.items.length);
+  const addManual = () => {
+    if (!manualTitle.trim()) return;
+
+    const book = manualBook;
+
+    const item = {
+      key: "m|" + Date.now(),
+      kind: "manual",
+      bookId:
+        books.find(
+          (b) =>
+            b.title.trim().toLowerCase() === (book?.title || manualTitle).trim().toLowerCase() &&
+            b.author.trim().toLowerCase() === (book?.author || "").trim().toLowerCase()
+        )?.id || null,
+      title: book?.title || manualTitle.trim(),
+      author: book?.author || "",
+      isbn: book?.isbn || "",
+      qty: Math.max(1, Number(manualQty) || 1),
+      orderIds: [],
+      genre: book?.genre || "",
+      language: book?.language || "",
+      year: book?.year || null,
+      coverId: book?.coverUrl || null,
+    };
+
+    setManual((prev) => [...prev, item]);
+    setManualTitle("");
+    setManualBook(null);
+    setManualQty(1);
+  };
+
+  const removeManual = (key) => {
+    setManual((prev) => prev.filter((item) => item.key !== key));
+  };
+
+
+  const draft = useMemo(
+    () => buildDraft(orders, books, suppliers),
+    [orders, books, suppliers]
+  );
+
+  const group = {
+    ...draft,
+    items: groupItems(draft, sel, manual),
+  };
+
+  const finals = group.items.length ? [group] : [];
   const pendingN = orders.filter((o) => o.status === "pending" && !o.archived).length;
-  const suggestedN = groups.reduce((a, g) => a + g.suggestions.length, 0);
+  const suggestedN = draft.lowStock.length;
   const ordersById = Object.fromEntries(orders.map((o) => [o.id, o]));
   const today = new Date().toLocaleDateString("es-AR");
 
@@ -57,17 +113,30 @@ export default function PedidoProveedor({ orders, books, suppliers, supplierOrde
     URL.revokeObjectURL(url);
   };
   const place = async (gs) => {
-    const ok = await run(() => E.placeSupplierOrders(ctx, gs), gs.length > 1 ? "Pedidos registrados" : "Pedido registrado");
-    if (ok) setSel((p) => { const n = { ...p }; gs.forEach((g) => g.items.forEach((l) => delete n[l.key])); return n; });
+    const ok = await run(
+      () => E.placeSupplierOrders(ctx, gs),
+      "Pedido registrado"
+    );
+
+    if (ok) {
+      setSel({});
+      setManual([]);
+    }
   };
-  const toggle = (s, on) => setSel((p) => { const n = { ...p }; if (on) n[s.key] = SUGGESTED_QTY; else delete n[s.key]; return n; });
+
+  const toggle = (s, on) =>
+    setSel((p) => {
+      const n = { ...p };
+      if (on) n[s.key] = 1;
+      else delete n[s.key];
+      return n;
+    });
 
   return (
     <>
       <div className="headrow top-gap">
         <h2>Pedido al proveedor</h2>
         <div className="actions">
-          <button className="btn" onClick={() => setShowSup(true)}>Proveedores</button>
           {!drafting && <button className="btn solid" onClick={() => setDrafting(true)}>Armar pedido</button>}
         </div>
       </div>
@@ -75,7 +144,9 @@ export default function PedidoProveedor({ orders, books, suppliers, supplierOrde
       {!drafting ? (
         <div className="empty">
           <p>{plural(pendingN, "encargo pendiente", "encargos pendientes")} y {plural(suggestedN, "libro con stock crítico", "libros con stock crítico")}.</p>
-          <p className="muted">Tocá «Armar pedido» para juntarlos por proveedor y por libro.</p>
+          <p className="muted">
+            Armá una lista con reposiciones, encargos de clientes y cualquier otro libro que quieras comprar.
+          </p>
         </div>
       ) : (
         <>
@@ -84,57 +155,175 @@ export default function PedidoProveedor({ orders, books, suppliers, supplierOrde
             <button className="btn sm" disabled={!finals.length} onClick={csv}>Exportar CSV</button>
             <button className="btn sm" disabled={!finals.length} onClick={() => window.print()}>Exportar PDF</button>
             <button className="btn sm solid" disabled={!finals.length} onClick={() => place(finals)}>Marcar todo como pedido</button>
-            <button className="btn sm" onClick={() => { setDrafting(false); setSel({}); }}>Cerrar</button>
+            <button
+              className="btn sm"
+              onClick={() => {
+                setDrafting(false);
+                setSel({});
+                setManual([]);
+                setManualTitle("");
+                setManualBook(null);
+              }}
+            >
+              Cerrar
+            </button>
           </div>
-          {groups.length ? groups.map((g) => {
-            const fin = { ...g, items: groupItems(g, sel) };
-            return (
-              <section className="panel sup" key={g.id || "none"}>
-                <div className="ph">
-                  <div>
-                    <h3>{g.supplier?.name || NO_SUPPLIER}</h3>
-                    {g.supplier?.contact && <small>{g.supplier.contact}</small>}
-                  </div>
-                  <div className="actions">
-                    <button className="btn sm" disabled={!fin.items.length} onClick={() => copy([fin])}>Copiar</button>
-                    <button className="btn sm solid" disabled={!fin.items.length} onClick={() => place([fin])}>Marcar como pedido</button>
-                  </div>
-                </div>
-                {g.lines.length > 0 && (
-                  <ul className="plines">
-                    {g.lines.map((l) => (
-                      <li key={l.key}>
-                        <div><strong>{l.title}</strong><small>{l.author}</small></div>
-                        <span className="qty">× {l.qty}</span>
-                        <small>{plural(l.customers, "cliente", "clientes")}</small>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {g.suggestions.length > 0 && (
-                  <div className="sugg">
-                    <p>Sugeridos por stock crítico <small>Marcá los que quieras sumar al pedido</small></p>
-                    <ul>
-                      {g.suggestions.map((s) => (
-                        <li key={s.key}>
-                          <label className="chk">
-                            <input type="checkbox" checked={!!sel[s.key]} onChange={(e) => toggle(s, e.target.checked)} />
-                            <span><strong>{s.title}</strong><small>Quedan {s.stock}</small></span>
-                          </label>
-                          {sel[s.key] && (
-                            <input className="qin" type="number" min="1" step="1" value={sel[s.key]} aria-label={`Cantidad de ${s.title}`}
-                              onChange={(e) => setSel({ ...sel, [s.key]: Math.max(1, Number(e.target.value) || 1) })} />
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </section>
-            );
-          }) : <div className="empty"><p className="muted">No hay nada para pedir: no hay encargos pendientes ni libros con stock crítico.</p></div>}
 
-          {/* Versión limpia que sale al imprimir o guardar como PDF */}
+          {draft.lowStock.length > 0 && (
+            <section className="panel sup">
+              <div className="ph">
+                <div>
+                  <h3>1. Reposición de stock</h3>
+                  <small>Libros con pocas unidades disponibles</small>
+                </div>
+              </div>
+
+              <ul className="plines">
+                {draft.lowStock.map((s) => (
+                  <li key={s.key}>
+                    <label className="chk">
+                      <input
+                        type="checkbox"
+                        checked={sel[s.key] !== undefined}
+                        onChange={(e) => toggle(s, e.target.checked)}
+                      />
+                      <span>
+                        <strong>{s.title}</strong>
+                        <small>{s.author} · Stock actual: {s.stock}</small>
+                      </span>
+                    </label>
+
+                    {sel[s.key] !== undefined && (
+                      <input
+                        className="qin"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={sel[s.key]}
+                        onChange={(e) =>
+                          setSel((p) => ({
+                            ...p,
+                            [s.key]: Math.max(1, Number(e.target.value) || 1),
+                          }))
+                        }
+                      />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section className="panel sup">
+            <div className="ph">
+              <div>
+                <h3>2. Encargos de clientes</h3>
+                <small>Libros que necesitás para pedidos pendientes</small>
+              </div>
+            </div>
+
+            {draft.lines.length ? (
+              <ul className="plines">
+                {draft.lines.map((l) => (
+                  <li key={l.key}>
+                    <div>
+                      <strong>{l.title}</strong>
+                      <small>
+                        {l.author} · {plural(l.customers, "cliente", "clientes")}
+                      </small>
+                    </div>
+                    <span className="qty">× {l.qty}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">No hay encargos pendientes.</p>
+            )}
+          </section>
+
+          <section className="panel sup">
+            <div className="ph">
+              <div>
+                <h3>3. Otros libros</h3>
+                <small>Agregá cualquier título que quieras comprar</small>
+              </div>
+            </div>
+
+            <div className="fields">
+              <TitleSearch
+                value={manualTitle}
+                onChange={(v) => {
+                  setManualTitle(v);
+                  setManualBook(null);
+                }}
+                onPick={(b) => {
+                  setManualTitle(b.title);
+                  setManualBook(b);
+                }}
+              />
+
+              <label>
+                Cantidad
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={manualQty}
+                  onChange={(e) => setManualQty(Math.max(1, Number(e.target.value) || 1))}
+                />
+              </label>
+            </div>
+
+            <div className="actions">
+              <button
+                className="btn solid"
+                type="button"
+                disabled={!manualTitle.trim()}
+                onClick={addManual}
+              >
+                + Agregar al pedido
+              </button>
+            </div>
+
+            {manual.length > 0 && (
+              <ul className="plines">
+                {manual.map((l) => (
+                  <li key={l.key}>
+                    <div>
+                      <strong>{l.title}</strong>
+                      <small>{l.author || "Autor no especificado"}</small>
+                    </div>
+
+                    <input
+                      className="qin"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={l.qty}
+                      onChange={(e) =>
+                        setManual((p) =>
+                          p.map((x) =>
+                            x.key === l.key
+                              ? { ...x, qty: Math.max(1, Number(e.target.value) || 1) }
+                              : x
+                          )
+                        )
+                      }
+                    />
+
+                    <button
+                      className="btn sm"
+                      type="button"
+                      onClick={() => removeManual(l.key)}
+                    >
+                      Quitar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           <div className="print-only">
             <h2>Pedido del {today}</h2>
             {finals.map((g) => (
@@ -173,9 +362,6 @@ export default function PedidoProveedor({ orders, books, suppliers, supplierOrde
         </ul>
       ) : <div className="empty"><p className="muted">Todavía no enviaste pedidos.</p></div>}
 
-      <Modal open={showSup} onClose={() => setShowSup(false)} label="Proveedores">
-        {showSup && <Suppliers suppliers={suppliers} ctx={ctx} run={run} />}
-      </Modal>
       <Modal open={!!receiving} onClose={() => setReceiving(null)} label="Registrar recepción">
         {receiving && (
           <Recepcion so={receiving} onCancel={() => setReceiving(null)}

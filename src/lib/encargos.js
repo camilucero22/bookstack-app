@@ -26,46 +26,103 @@ export function findDuplicate(orders, c, ignoreId) {
 
 // Junta los encargos pendientes por proveedor y por libro (sumando cantidades),
 // y agrega como sugerencias los libros con stock crítico que no estén ya en la lista.
+
+// Organiza el pedido en tres grupos:
+// stock crítico, encargos y libros agregados manualmente.
 export function buildDraft(orders, books, suppliers) {
   const bookById = Object.fromEntries(books.map((b) => [b.id, b]));
-  const supById = Object.fromEntries(suppliers.map((s) => [s.id, s]));
-  const groups = {};
-  const group = (sid) => {
-    const k = supById[sid] ? sid : "none";
-    return (groups[k] ||= { id: k === "none" ? null : k, supplier: supById[k] || null, lines: [], suggestions: [] });
+  const groups = {
+    id: "general",
+    supplier: null,
+    lowStock: [],
+    lines: [],
+    suggestions: [],
   };
+
   const lines = {};
-  orders.filter((o) => o.status === "pending" && !o.archived).forEach((o) => {
-    const g = group(o.supplierId || bookById[o.bookId]?.supplierId);
-    const key = g.id + "|" + bookKey(o);
-    let l = lines[key];
-    if (!l) {
-      l = lines[key] = { key, kind: "encargo", bookId: o.bookId || null, title: o.title, author: o.author || "", isbn: "", qty: 0, who: new Set(), orderIds: [] };
-      g.lines.push(l);
-    }
-    l.isbn ||= o.isbn || "";
-    l.qty += o.qty;
-    l.who.add(digits(o.customerPhone) || norm(o.customerName));
-    l.orderIds.push(o.id);
-  });
-  const inList = new Set(Object.values(lines).map((l) => l.bookId).filter(Boolean));
-  books.filter((b) => b.stock <= 2 && !inList.has(b.id)).forEach((b) => {
-    group(b.supplierId).suggestions.push({ key: "s|" + b.id, kind: "reposicion", bookId: b.id, title: b.title, author: b.author || "", isbn: "", stock: b.stock, orderIds: [] });
-  });
-  return Object.values(groups)
-    .map((g) => ({
-      ...g,
-      lines: g.lines.map((l) => ({ ...l, customers: l.who.size })).sort((a, b) => a.title.localeCompare(b.title)),
-      suggestions: g.suggestions.sort((a, b) => a.stock - b.stock || a.title.localeCompare(b.title)),
-    }))
-    .sort((a, b) => (a.supplier ? 0 : 1) - (b.supplier ? 0 : 1) || (a.supplier?.name || "").localeCompare(b.supplier?.name || ""));
+
+  // 1. ENCARGOS: agrupa libros pedidos por clientes.
+  orders
+    .filter((o) => o.status === "pending" && !o.archived)
+    .forEach((o) => {
+      const key = o.bookId || "t:" + norm(o.title) + "|" + norm(o.author);
+
+      let l = lines[key];
+
+      if (!l) {
+        l = lines[key] = {
+          key: "e|" + key,
+          kind: "encargo",
+          bookId: o.bookId || null,
+          title: o.title,
+          author: o.author || "",
+          isbn: o.isbn || "",
+          qty: 0,
+          who: new Set(),
+          orderIds: [],
+        };
+        groups.lines.push(l);
+      }
+
+      l.qty += Number(o.qty || 0);
+      l.isbn ||= o.isbn || "";
+      l.who.add(o.customerPhone || o.customerName || o.id);
+      l.orderIds.push(o.id);
+    });
+
+  // Identifica libros que ya están incluidos en encargos.
+  const orderedBookIds = new Set(
+    Object.values(lines).map((l) => l.bookId).filter(Boolean)
+  );
+
+  // 2. STOCK CRÍTICO: libros que necesitan reposición.
+  books
+    .filter((b) => Number(b.stock) <= 2 && !orderedBookIds.has(b.id))
+    .forEach((b) => {
+      groups.lowStock.push({
+        key: "s|" + b.id,
+        kind: "reposicion",
+        bookId: b.id,
+        title: b.title,
+        author: b.author || "",
+        isbn: b.isbn || "",
+        stock: Number(b.stock || 0),
+        qty: 1,
+        orderIds: [],
+      });
+    });
+
+  groups.lines = groups.lines
+    .map((l) => ({ ...l, customers: l.who.size }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+
+  groups.lowStock.sort(
+    (a, b) => a.stock - b.stock || a.title.localeCompare(b.title)
+  );
+
+  return groups;
 }
 
-// sel = { [claveDeSugerencia]: cantidad } con las sugerencias que se decidió sumar.
-export const groupItems = (g, sel) => [
+// Construye la lista final que se enviará al proveedor.
+export const groupItems = (g, sel = {}, manual = []) => [
+  ...g.lowStock
+    .filter((s) => sel[s.key] !== undefined && Number(sel[s.key]) > 0)
+    .map((s) => ({
+      ...s,
+      qty: Number(sel[s.key]),
+      customers: 0,
+    })),
+
   ...g.lines,
-  ...g.suggestions.filter((s) => sel[s.key]).map((s) => ({ ...s, qty: sel[s.key], customers: 0 })),
+
+  ...manual.map((s) => ({
+    ...s,
+    qty: Number(s.qty),
+    customers: 0,
+    orderIds: s.orderIds || [],
+  })),
 ];
+
 
 export function draftToText(groups, date = new Date()) {
   const body = groups.map((g) => "\n" + (g.supplier?.name || NO_SUPPLIER) + "\n" + g.items.map((l) =>
@@ -79,7 +136,11 @@ export function draftToCsv(groups) {
   const rows = [["Proveedor", "Título", "Autor", "ISBN", "Cantidad", "Clientes", "Tipo"]];
   groups.forEach((g) => g.items.forEach((l) => rows.push([
     g.supplier?.name || NO_SUPPLIER, l.title, l.author, l.isbn, l.qty,
-    l.kind === "encargo" ? l.customers : "", l.kind === "encargo" ? "Encargo" : "Reposición",
+    l.kind === "encargo"
+      ? "Encargo"
+      : l.kind === "manual"
+        ? "Manual"
+        : "Reposición",
   ])));
   return "\uFEFF" + rows.map((r) => r.map(q).join(";")).join("\r\n");
 }
