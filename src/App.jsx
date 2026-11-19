@@ -17,7 +17,15 @@ import EncargoForm from "./components/EncargoForm";
 import PedidoProveedor from "./components/PedidoProveedor";
 import * as E from "./lib/encargosDb";
 
-const SORTS = ["Más recientes", "Alfabético", "Género (A-Z)", "Año publicación", "Autor (A-Z)", "Más vendidos", "Menor stock"];
+const SORTS = [
+  "Más recientes",
+  "Alfabético",
+  "Género",
+  "Año publicación",
+  "Autor",
+  "Más vendidos",
+  "Mayor stock"
+];
 const money = (n) => "$" + n.toLocaleString("es-AR");
 const Icon = ({ children }) => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"
@@ -44,7 +52,7 @@ export default function App() {
   const [orderForm, setOrderForm] = useState(null); // null | { order, book }
   const [catalogFrom, setCatalogFrom] = useState(null); // encargo que se va a cargar al catálogo
   const toastRef = useRef(null);
-
+  const [sortDirection, setSortDirection] = useState("asc");
   const notify = (type, msg) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 3500);
@@ -168,17 +176,32 @@ export default function App() {
   const cmp = {
     "Más recientes": (a, b) =>
       (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0),
-    "Alfabético": (a, b) => a.title.localeCompare(b.title),
-    "Género (A-Z)": (a, b) => a.genre.localeCompare(b.genre) || a.title.localeCompare(b.title),
-    "Año publicación": (a, b) => (b.year ?? -1) - (a.year ?? -1),
-    "Autor (A-Z)": (a, b) => a.author.localeCompare(b.author),
-    "Más vendidos": (a, b) => (sold[b.id] || 0) - (sold[a.id] || 0),
-    "Menor stock": (a, b) => a.stock - b.stock,
+
+    "Alfabético": (a, b) =>
+      a.title.localeCompare(b.title),
+
+    "Género": (a, b) =>
+      (a.genre || "").localeCompare(b.genre || ""),
+
+    "Año publicación": (a, b) =>
+      (b.year ?? -1) - (a.year ?? -1),
+
+    "Autor": (a, b) =>
+      (a.author || "").localeCompare(b.author || ""),
+
+    "Más vendidos": (a, b) =>
+      (sold[b.id] || 0) - (sold[a.id] || 0),
+
+    "Mayor stock": (a, b) =>
+      (b.stock ?? 0) - (a.stock ?? 0)
   }[sort];
+
   const needle = q.trim().toLowerCase();
   const shown = books
     .filter((b) => !needle || (b.title + " " + b.author + " " + b.genre).toLowerCase().includes(needle))
-    .sort(cmp);
+    .sort((a, b) =>
+      sortDirection === "asc" ? cmp(a, b) : cmp(b, a)
+    );
   const selBook = books.find((b) => b.id === selected);
 
   if (fatal) return (
@@ -224,56 +247,112 @@ export default function App() {
         <PedidoProveedor orders={orders} books={books} suppliers={suppliers} supplierOrders={supplierOrders}
           ctx={ctx} run={run} notify={notify} />
       )}
+
       {!loading && view === "stock" && (
         <>
           <Stats books={books} sales={sales} />
+
           <div className="searchbar">
-            <Icon><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></Icon>
-            <input className="search" type="search" aria-label="Buscar por título, autor o género" placeholder="Buscar por título, autor o género"
-              value={q} onChange={(e) => setQ(e.target.value)} />
+            <Icon>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-4-4" />
+            </Icon>
+            <input
+              className="search"
+              type="search"
+              aria-label="Buscar por título, autor o género"
+              placeholder="Buscar por título, autor o género"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
           </div>
+
           <div className="sorts" role="group" aria-label="Ordenar por">
-            {SORTS.map((s) => (
-              <button key={s} aria-pressed={sort === s} className={"sort" + (sort === s ? " on" : "")} onClick={() => setSort(s)}>{s}</button>
-            ))}
+            {SORTS.map((s) => {
+              const labels = {
+                "Más recientes": sortDirection === "asc" ? "Más antiguos" : "Más recientes",
+                "Alfabético": sortDirection === "asc" ? "Alfabético (A-Z)" : "Alfabético (Z-A)",
+                "Género": sortDirection === "asc" ? "Género (A-Z)" : "Género (Z-A)",
+                "Año publicación": sortDirection === "asc" ? "Año más reciente" : "Año más antiguo",
+                "Autor": sortDirection === "asc" ? "Autor (A-Z)" : "Autor (Z-A)",
+                "Más vendidos": sortDirection === "asc" ? "Más vendidos" : "Menos vendidos",
+                "Mayor stock": sortDirection === "asc" ? "Mayor stock" : "Menor stock"
+              };
+
+              return (
+                <button
+                  key={s}
+                  aria-pressed={sort === s}
+                  className={"sort" + (sort === s ? " on" : "")}
+                  onClick={() => {
+                    if (sort === s) {
+                      setSortDirection((prev) => prev === "asc" ? "desc" : "asc");
+                    } else {
+                      setSort(s);
+                      setSortDirection("asc");
+                    }
+                  }}
+                >
+                  {sort === s ? labels[s] : s}
+                </button>
+              );
+            })}
           </div>
+
           <div className="headrow">
-            <h2>Libros disponibles <span className="count">{shown.length}</span></h2>
+            <h2>
+              Libros disponibles <span className="count">{shown.length}</span>
+            </h2>
             <button className="btn solid" onClick={() => setEditing("new")}>
-              <Icon><path d="M12 5v14M5 12h14" /></Icon>Agregar libro
+              <Icon>
+                <path d="M12 5v14M5 12h14" />
+              </Icon>
+              Agregar libro
             </button>
           </div>
+
           {shown.length ? (
             <ul className="books">
               {shown.map((b) => (
                 <li key={b.id}>
-                  <button className="card" onClick={() => setSelected(b.id)}
-                    aria-label={`${b.title}, ${b.author}. ${b.stock} en stock`}>
+                  <button
+                    className="card"
+                    onClick={() => setSelected(b.id)}
+                    aria-label={`${b.title}, ${b.author}. ${b.stock} en stock`}
+                  >
                     <Cover book={b} />
                     <span className="meta">
                       <strong>{b.title}</strong>
                       <em>{b.author}</em>
                       <small>{[b.genre, b.year].filter(Boolean).join(" · ")}</small>
                     </span>
-                    <span className={"badge" + (b.stock <= 2 ? " low" : "")}>{b.stock === 0 ? "Sin stock" : `${b.stock} en stock`}</span>
+                    <span className={"badge" + (b.stock <= 2 ? " low" : "")}>
+                      {b.stock === 0 ? "Sin stock" : `${b.stock} en stock`}
+                    </span>
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
             <div className="empty">
-              <p className="muted">{books.length ? "No hay libros que coincidan." : "Tu estante está vacío. Agregá el primer libro."}</p>
+              <p className="muted">
+                {books.length
+                  ? "No hay libros que coincidan."
+                  : "Tu estante está vacío. Agregá el primer libro."}
+              </p>
             </div>
           )}
         </>
       )}
 
-      {lines.length > 0 && (
-        <div className="dock">
-          <span>{cartUnits} {cartUnits === 1 ? "libro" : "libros"}, {money(cartTotal)}</span>
-          <button className="btn solid" onClick={() => setCartOpen(true)}>Revisar venta</button>
-        </div>
-      )}
+      {
+        lines.length > 0 && (
+          <div className="dock">
+            <span>{cartUnits} {cartUnits === 1 ? "libro" : "libros"}, {money(cartTotal)}</span>
+            <button className="btn solid" onClick={() => setCartOpen(true)}>Revisar venta</button>
+          </div>
+        )
+      }
 
       <Modal open={!!editing} onClose={() => setEditing(null)} label="Libro">
         {editing && (
@@ -317,6 +396,6 @@ export default function App() {
       </Modal>
 
       <div ref={toastRef} popover="manual" className={"toast " + (toast?.type || "")} role="status">{toast?.msg}</div>
-    </div>
+    </div >
   );
 }
