@@ -58,6 +58,7 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   };
 
+  
   useEffect(() => {
     ensureUser()
       .then((u) => setUid(u.uid))

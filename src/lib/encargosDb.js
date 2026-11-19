@@ -1,9 +1,7 @@
 import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch, increment, serverTimestamp } from "firebase/firestore";
 import { ACTIVE, allocateReception, norm } from "./encargos";
 
-// ctx = { db }
-const col = (c, name) => collection(c.db, "shared", "libreria", name);
-const ref = (c, name, id) => doc(c.db, "shared", "libreria", name, id);
+
 
 /* Encargos */
 export const createOrder = (c, data) => addDoc(col(c, "customerOrders"), {
@@ -118,7 +116,8 @@ export async function receiveSupplierOrder(c, so, received, ordersById, books) {
         isbn: l.isbn || "",
         genre: l.genre || "Ficción",
         language: l.language || "Español",
-        price: Number(l.price || 0),
+        price: 0,
+        needsPricing: true,
         stock: Number(received[i]),
         supplierId: null,
         year: l.year || null,
@@ -159,7 +158,7 @@ export async function receiveSupplierOrder(c, so, received, ordersById, books) {
   return covered;
 }
 
-  // Un libro encargado que no estaba en el catálogo: se crea y se vincula a sus encargos activos.
+// Un libro encargado que no estaba en el catálogo: se crea y se vincula a sus encargos activos.
 // Un libro encargado que no estaba en el catálogo:
 // se crea y se vincula a sus encargos activos.
 export async function addBookFromOrder(c, data, o, all) {
@@ -193,9 +192,9 @@ export const saveSupplier = (c, id, data) =>
   id
     ? updateDoc(ref(c, "suppliers", id), data)
     : addDoc(col(c, "suppliers"), {
-        ...data,
-        createdAt: serverTimestamp(),
-      });
+      ...data,
+      createdAt: serverTimestamp(),
+    });
 
 export const removeSupplier = (c, id) =>
   deleteDoc(ref(c, "suppliers", id));
