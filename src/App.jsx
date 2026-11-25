@@ -33,6 +33,14 @@ const Icon = ({ children }) => (
 );
 
 export default function App() {
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("bookstack-theme") || "light"
+  );
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("bookstack-theme", theme);
+  }, [theme]);
   const [uid, setUid] = useState(null);
   const [books, setBooks] = useState([]);
   const [sales, setSales] = useState([]);
@@ -264,9 +272,31 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
-        <div>
-          <h1>Book Stack</h1>
-          <p className="lede">Stock y ventas de la librería</p>
+
+        <div className="brand">
+          <div>
+            <h1>Book Stack</h1>
+            <p className="lede">Stock y ventas de la librería</p>
+          </div>
+
+
+          <button
+            className="theme-toggle"
+            onClick={() => setTheme((prev) => prev === "light" ? "dark" : "light")}
+            aria-label={theme === "light" ? "Activar modo oscuro" : "Activar modo claro"}
+            title={theme === "light" ? "Modo oscuro" : "Modo claro"}
+          >
+            {theme === "light" ? (
+              <Icon>
+                <path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z" />
+              </Icon>
+            ) : (
+              <Icon>
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+              </Icon>
+            )}
+          </button>
         </div>
         <nav>
           <button className={"pill" + (view === "stock" ? " on" : "")} onClick={() => setView("stock")}>

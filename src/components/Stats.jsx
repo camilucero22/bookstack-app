@@ -41,3 +41,4 @@ export default function Stats({ books, sales }) {
     </section>
   );
 }
+

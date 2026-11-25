@@ -11,13 +11,14 @@ const Icon = ({ children }) => (
 
 // Misma paleta para la dona, la barra de idiomas y las referencias.
 const PALETTE = [
-  { bg: "var(--indigo)", fg: "#fff" },
-  { bg: "var(--lime)", fg: "var(--ink)" },
-  { bg: "var(--ink)", fg: "#fff" },
-  { bg: "var(--lav)", fg: "var(--ink)" },
-  { bg: "var(--coral)", fg: "#fff" },
-  { bg: "#6B63E0", fg: "#fff" },
+  { bg: "var(--c1)", fg: "var(--c1-fg)" },
+  { bg: "var(--c2)", fg: "var(--c2-fg)" },
+  { bg: "var(--c3)", fg: "var(--c3-fg)" },
+  { bg: "var(--c4)", fg: "var(--c4-fg)" },
+  { bg: "var(--c5)", fg: "var(--c5-fg)" },
+  { bg: "var(--c6)", fg: "var(--c6-fg)" },
 ];
+
 const color = (i) => PALETTE[i % PALETTE.length];
 
 const Empty = () => <p className="muted">Todavía no hay ventas.</p>;
