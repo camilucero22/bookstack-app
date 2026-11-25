@@ -15,6 +15,7 @@ import Stats from "./components/Stats";
 import Encargos from "./components/Encargos";
 import EncargoForm from "./components/EncargoForm";
 import PedidoProveedor from "./components/PedidoProveedor";
+import SalesHistory from "./components/SalesHistory";
 import * as E from "./lib/encargosDb";
 
 const SORTS = [
@@ -302,6 +303,16 @@ export default function App() {
           <button className={"pill" + (view === "stock" ? " on" : "")} onClick={() => setView("stock")}>
             <Icon><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" /><path d="M3 8l9 5 9-5M12 13v8" /></Icon>Stock
           </button>
+          <button
+            className={"pill" + (view === "sales" ? " on" : "")}
+            onClick={() => setView("sales")}
+          >
+            <Icon>
+              <path d="M4 4h16v16H4z" />
+              <path d="M8 9h8M8 13h8M8 17h4" />
+            </Icon>
+            Ventas
+          </button>
           <button className={"pill" + (view === "panel" ? " on" : "")} onClick={() => setView("panel")}>
             <Icon><path d="M3 12l4 4 5-9 4 7 5-6" /></Icon>Estadísticas
           </button>
@@ -318,6 +329,9 @@ export default function App() {
 
       {loading && <p className="muted">Cargando tu librería…</p>}
       {!loading && view === "panel" && <Dashboard books={books} sales={sales} onRestock={(b) => setEditing(b)} />}
+      {!loading && view === "sales" && (
+        <SalesHistory sales={sales} orders={orders} />
+      )}
       {!loading && view === "orders" && (
         <Encargos orders={orders} books={books} suppliers={suppliers} ctx={ctx} run={run}
           onNew={() => setOrderForm({ order: null, book: null })} onEdit={(o) => setOrderForm({ order: o, book: null })}
