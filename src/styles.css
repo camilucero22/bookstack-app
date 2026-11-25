@@ -1837,7 +1837,7 @@ a.btn {
 }
 
 [data-theme="dark"] .pill.on {
-  background: var(--lime);
+  background: #e2e1d0;
   color: #20221F;
 }
 
@@ -2161,35 +2161,6 @@ a.btn {
   background: #252820;
   color: var(--ink);
 }
-
-/* Campos del formulario */
-[data-theme="dark"] .ac input,
-[data-theme="dark"] .modal-body input,
-[data-theme="dark"] .modal-body select,
-[data-theme="dark"] .modal-body textarea {
-  background: #292C25;
-  color: var(--ink);
-  border-color: var(--line);
-}
-
-/* Autocompletado de títulos */
-[data-theme="dark"] .suggest {
-  background: #292C25;
-  border-color: var(--line);
-  color: var(--ink);
-}
-
-[data-theme="dark"] .suggest li:hover,
-[data-theme="dark"] .suggest li.on {
-  background: #3A3D35;
-}
-
-[data-theme="dark"] .suggest small,
-[data-theme="dark"] .ac .hint {
-  color: var(--mute);
-}
-
-
 
 /* ===== Historial de ventas ===== */
 
@@ -2544,12 +2515,12 @@ a.btn {
 }
 
 [data-theme="dark"] .sales-history__tag--order {
-  background: var(--violet);
+  background: #353161;
   color: var(--violet-ink);
 }
 
 [data-theme="dark"] .sales-history__detail {
-  background: #252820;
+  background: #1c1e1a;
 }
 
 [data-theme="dark"] .sales-history__empty {
@@ -2624,4 +2595,78 @@ a.btn {
 [data-theme="dark"] .sales-history__tag--direct {
   background: #293747;
   color: #A9C8ED;
+}
+
+/* Hover de ventas - modo claro */
+.sales-history__sale:hover {
+  border-color: #C8DFA0;
+  background: #eff7dd;
+}
+
+/* Hover de ventas - modo oscuro */
+[data-theme="dark"] .sales-history__sale:hover {
+  border-color: #A9A3E8;
+  background: #302D3D;
+}
+
+/* ===== Hero de estadísticas - Light Mode ===== */
+
+/* Contenedor exterior */
+.hero {
+  background: #eff0ea;
+  border: 1px solid #E5E7DF;
+}
+
+/* Tarjetas secundarias */
+.hcard,
+.hcard.dark {
+  background: #FFFFFF;
+  border: 1px solid #E8E8E2;
+  color: var(--ink);
+}
+
+/* Títulos e íconos */
+.hcard .hlabel {
+  color: var(--mute);
+  opacity: 1;
+}
+
+.hcard .hlabel svg {
+  color: #7770C9;
+}
+
+.hcard .hcap {
+  color: var(--mute);
+  opacity: 1;
+}
+
+/* Tarjeta principal: Ingresos */
+.hcard.main {
+  background: #dae5a7;
+  color: var(--ink);
+  border: 1px solid #E5E7DF;
+}
+
+/* Círculo decorativo */
+.hcard.main::after {
+  background: rgba(116, 134, 24, 0.2);
+}
+
+/* Ícono de ingresos */
+.hcard.main .coin {
+  background: #EEF3D8;
+  color: #53652B;
+}
+
+/* Etiqueta Total acumulado */
+.hcard.main .hpill {
+  background: #F0F2E9;
+  color: #53652B;
+}
+
+/* Texto secundario */
+.hcard.main .hlabel,
+.hcard.main .hcap {
+  color: var(--mute);
+  opacity: 1;
 }
